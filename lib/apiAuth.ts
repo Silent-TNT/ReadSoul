@@ -10,9 +10,9 @@ export function extractWrkKey(req: NextRequest): string | null {
 }
 
 export function validateBetaGate(req: NextRequest): boolean {
-  const secret = process.env.BETA_GATE_SECRET;
+  const secret = process.env.BETA_GATE_SECRET?.trim();
   if (!secret) return true;
-  return req.headers.get("x-readsoul-beta") === secret;
+  return req.headers.get("x-readsoul-beta")?.trim() === secret;
 }
 
 export function guardAiRoute(req: NextRequest): NextResponse | null {

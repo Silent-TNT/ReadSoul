@@ -1,8 +1,7 @@
 "use client";
 
 import { useApiKey } from "@/hooks/useApiKey";
-
-const BETA_SECRET = process.env.NEXT_PUBLIC_BETA_GATE_SECRET ?? "";
+import { getClientBetaSecret } from "@/lib/betaGate";
 
 function buildHeaders(apiKey?: string | null): HeadersInit {
   const headers: Record<string, string> = {
@@ -11,8 +10,9 @@ function buildHeaders(apiKey?: string | null): HeadersInit {
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
-  if (BETA_SECRET) {
-    headers["X-ReadSoul-Beta"] = BETA_SECRET;
+  const betaSecret = getClientBetaSecret();
+  if (betaSecret) {
+    headers["X-ReadSoul-Beta"] = betaSecret;
   }
   return headers;
 }

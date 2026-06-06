@@ -36,10 +36,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const betaSecret = process.env.BETA_GATE_SECRET?.trim() ?? "";
+  const betaInitScript = betaSecret
+    ? `window.__READSOUL_BETA__=${JSON.stringify(betaSecret)};`
+    : "";
+
   return (
     <html lang="zh-CN" data-theme="dark">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {betaInitScript ? (
+          <script dangerouslySetInnerHTML={{ __html: betaInitScript }} />
+        ) : null}
       </head>
       <body className="min-h-screen antialiased">
         <ThemeProvider>
