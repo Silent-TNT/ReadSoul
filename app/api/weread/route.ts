@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       return await fetch(GATEWAY, {
         method: "POST",
         headers: {
-          Authorization: auth,
+          Authorization: auth!,
           "Content-Type": "application/json",
           Accept: "application/json",
           "User-Agent": "ReadSoul/1.0",
