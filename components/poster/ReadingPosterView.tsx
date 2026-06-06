@@ -315,7 +315,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
           </div>
 
           {/* 海报预览 */}
-          <div className="overflow-hidden rounded-2xl shadow-lg shadow-black/10">
+          <div className="rounded-2xl shadow-lg shadow-black/10">
             <div
               ref={posterRef}
               className="px-4 py-6 sm:px-8 sm:py-10"
@@ -359,10 +359,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
                 </div>
               </header>
 
-              <div
-                key={animKey}
-                className="flex flex-wrap justify-start gap-1.5 sm:gap-2.5"
-              >
+              <div key={animKey} className="text-left leading-relaxed">
                 {filtered.map((book, i) => {
                   const colors = pillColorForBook(style, book, i);
                   return (
@@ -386,7 +383,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
                             book.bookId
                           );
                       }}
-                      className={`poster-pill inline-block max-w-[calc(50%-0.375rem)] cursor-pointer rounded-full font-medium transition-transform duration-200 hover:scale-105 sm:max-w-[11rem] md:max-w-none ${PILL_SIZE[style.pillSize]}`}
+                      className={`poster-pill mb-1.5 mr-1.5 inline-block max-w-[10.5rem] cursor-pointer rounded-full font-medium align-top transition-transform duration-200 hover:scale-105 sm:max-w-xs md:max-w-sm lg:max-w-none ${PILL_SIZE[style.pillSize]}`}
                       style={{
                         backgroundColor: colors.bg,
                         color: colors.text,

@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { ToastProvider } from "@/components/Toast";
 import SentryInit from "@/components/SentryInit";
+import BetaGateProvider from "@/components/BetaGateProvider";
 
 export const metadata: Metadata = {
   title: "阅己 ReadSoul · 见人阅己",
@@ -50,12 +51,14 @@ export default function RootLayout({
         ) : null}
       </head>
       <body className="min-h-screen antialiased">
-        <ThemeProvider>
-          <ToastProvider>
-            <SentryInit />
-            {children}
-          </ToastProvider>
-        </ThemeProvider>
+        <BetaGateProvider secret={betaSecret}>
+          <ThemeProvider>
+            <ToastProvider>
+              <SentryInit />
+              {children}
+            </ToastProvider>
+          </ThemeProvider>
+        </BetaGateProvider>
       </body>
     </html>
   );

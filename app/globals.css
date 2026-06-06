@@ -390,6 +390,13 @@ body {
 .poster-pill {
   animation: poster-pill-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+@media (prefers-reduced-motion: reduce) {
+  .poster-pill {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
 
 /* 阅读海报悬停 Tooltip — 随站点明/暗主题 */
 .poster-tooltip {

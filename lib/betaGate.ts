@@ -1,11 +1,18 @@
-/** 服务端 HTML 注入 window.__READSOUL_BETA__，避免 NEXT_PUBLIC 构建时未生效 */
+/** Beta 门禁密钥：服务端注入 + 构建时 NEXT_PUBLIC 兜底 */
 declare global {
   interface Window {
     __READSOUL_BETA__?: string;
   }
 }
 
+let runtimeBetaSecret = "";
+
+export function setRuntimeBetaSecret(secret: string) {
+  runtimeBetaSecret = secret.trim();
+}
+
 export function getClientBetaSecret(): string {
+  if (runtimeBetaSecret) return runtimeBetaSecret;
   if (typeof window !== "undefined") {
     const injected = window.__READSOUL_BETA__?.trim();
     if (injected) return injected;

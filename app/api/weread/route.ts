@@ -57,16 +57,31 @@ export async function POST(req: NextRequest) {
 
   const payload = { ...body, skill_version: SKILL_VERSION };
 
+  async function callUpstream(attempt: number): Promise<Response> {
+    try {
+      return await fetch(GATEWAY, {
+        method: "POST",
+        headers: {
+          Authorization: auth,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": "ReadSoul/1.0",
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        signal: AbortSignal.timeout(25_000),
+      });
+    } catch (e) {
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 600));
+        return callUpstream(attempt + 1);
+      }
+      throw e;
+    }
+  }
+
   try {
-    const upstream = await fetch(GATEWAY, {
-      method: "POST",
-      headers: {
-        Authorization: auth,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    const upstream = await callUpstream(1);
 
     const text = await upstream.text();
     let data: unknown;
@@ -84,11 +99,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: upstream.ok ? 200 : upstream.status });
   } catch (e) {
-    logApiError("/api/weread", 502, (e as Error).message, {
+    const msg = (e as Error).message || "unknown";
+    logApiError("/api/weread", 502, msg, {
       api_name: body.api_name,
     });
+    const hint =
+      msg.includes("timeout") || msg.includes("abort")
+        ? "连接微信读书超时，请稍后重试"
+        : "网关请求失败，请稍后重试";
     return NextResponse.json(
-      { errcode: -1, errmsg: "网关请求失败，请稍后重试" },
+      { errcode: -1, errmsg: hint },
       { status: 502 }
     );
   }
