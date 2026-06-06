@@ -27,11 +27,12 @@ interface Props {
 
 type StatusFilter = "all" | "finished" | "reading";
 type TimeScope = "all" | "year" | "month";
+type PosterVariant = "preview" | "export-mobile" | "export-desktop";
 
-const PILL_SIZE = {
-  sm: "px-2 py-0.5 text-[10px] leading-snug sm:px-2.5 sm:py-1 sm:text-[11px]",
-  md: "px-2.5 py-1 text-[10px] leading-snug sm:px-3.5 sm:py-1.5 sm:text-xs",
-  lg: "px-3 py-1.5 text-[11px] leading-snug sm:px-4 sm:py-2 sm:text-sm",
+const DESKTOP_PILL = {
+  sm: "px-2.5 py-1 text-[11px] leading-snug",
+  md: "px-3.5 py-1.5 text-xs leading-snug",
+  lg: "px-4 py-2 text-sm leading-snug",
 };
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -43,14 +44,206 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([arr], { type: mime });
 }
 
-function exportPixelRatio(el: HTMLElement): number {
-  const w = el.offsetWidth;
-  const h = el.scrollHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-  // 移动端 canvas 尺寸上限，避免 html-to-image 内存溢出
-  const maxSide = 4096;
-  const cap = maxSide / Math.max(w, h, 1);
-  return Math.max(1, Math.min(dpr, cap, 2));
+function isMobileViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 639px)").matches;
+}
+
+/** 固定导出宽度下计算 pixelRatio，保证宽图清晰且不超过 canvas 上限 */
+function exportPixelRatio(width: number, height: number, mobile: boolean): number {
+  const base = mobile ? 2.5 : 2;
+  const maxSide = 8192;
+  const cap = maxSide / Math.max(width, height, 1);
+  return Math.max(1, Math.min(base, cap));
+}
+
+interface PosterCanvasProps {
+  books: PosterBook[];
+  style: PosterStyle;
+  counts: { finished: number; reading: number; total: number };
+  variant: PosterVariant;
+  animKey?: number;
+  interactive?: boolean;
+  onBookHover?: (
+    book: PosterBook,
+    clientX: number,
+    clientY: number
+  ) => void;
+  onBookLeave?: () => void;
+}
+
+function PosterCanvas({
+  books,
+  style,
+  counts,
+  variant,
+  animKey = 0,
+  interactive = false,
+  onBookHover,
+  onBookLeave,
+}: PosterCanvasProps) {
+  const badges = statBadgeColors(style);
+  const isExportMobile = variant === "export-mobile";
+  const isExportDesktop = variant === "export-desktop";
+  const isExport = isExportMobile || isExportDesktop;
+  const isPreview = variant === "preview";
+
+  const rootClass = isExportMobile
+    ? "w-[375px] px-3 py-4"
+    : isExportDesktop
+      ? "w-[1080px] px-10 py-10"
+      : "px-4 py-6 sm:px-8 sm:py-10";
+
+  const titleClass = isExportMobile
+    ? "text-[15px]"
+    : isPreview
+      ? "text-lg sm:text-2xl"
+      : "text-3xl";
+
+  const subtitleClass = isExportMobile
+    ? "text-[8px] tracking-[0.16em]"
+    : isPreview
+      ? "text-[11px] tracking-[0.22em] sm:mt-1.5 sm:text-sm sm:tracking-[0.28em]"
+      : "text-sm tracking-[0.28em]";
+
+  const badgeClass = isExportMobile
+    ? "rounded-full px-2 py-0.5 text-[8px] font-semibold"
+    : isPreview
+      ? "rounded-full px-3 py-1 text-xs font-semibold"
+      : "rounded-full px-3 py-1 text-sm font-semibold";
+
+  const booksClass = isExportMobile
+    ? "grid grid-cols-3 gap-1"
+    : isPreview
+      ? "grid grid-cols-2 gap-1 sm:block sm:text-left sm:leading-relaxed"
+      : "text-left leading-relaxed";
+
+  const pillClass = isExportMobile
+    ? "block w-full rounded-md px-1 py-0.5 text-center text-[8px] font-medium leading-[1.25]"
+    : isPreview
+      ? `block w-full rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-snug sm:mb-1.5 sm:mr-1.5 sm:inline-block sm:w-auto sm:max-w-none sm:rounded-full sm:px-3.5 sm:py-1.5 sm:text-xs ${DESKTOP_PILL[style.pillSize]}`
+      : `inline-block rounded-full font-medium ${DESKTOP_PILL[style.pillSize]} mb-1.5 mr-1.5`;
+
+  const footerClass = isExportMobile
+    ? "mt-3 text-[8px] tracking-wide"
+    : isPreview
+      ? "mt-6 text-[10px] tracking-wider sm:mt-8"
+      : "mt-8 text-[11px] tracking-wider";
+
+  return (
+    <div
+      className={rootClass}
+      style={{
+        background: `linear-gradient(165deg, ${style.bgFrom} 0%, ${style.bgTo} 100%)`,
+        minHeight: isExportMobile ? undefined : 280,
+      }}
+    >
+      <header className={`text-left ${isExportMobile ? "mb-2.5" : "mb-5 sm:mb-6"}`}>
+        <h1
+          className={`font-serif font-black tracking-wide ${titleClass}`}
+          style={{ color: style.titleColor }}
+        >
+          {style.title}
+        </h1>
+        <p
+          className={`mt-1 ${subtitleClass}`}
+          style={{ color: style.subtitleColor }}
+        >
+          {style.subtitle}
+        </p>
+        <div
+          className={`flex flex-wrap justify-start ${isExportMobile ? "mt-1.5 gap-1" : "mt-3 gap-1.5 sm:mt-4 sm:gap-2"}`}
+        >
+          <span
+            className={badgeClass}
+            style={{
+              backgroundColor: badges.finished.bg,
+              color: badges.finished.text,
+            }}
+          >
+            已读 {counts.finished}
+          </span>
+          <span
+            className={badgeClass}
+            style={{
+              backgroundColor: badges.reading.bg,
+              color: badges.reading.text,
+            }}
+          >
+            在读 {counts.reading}
+          </span>
+        </div>
+      </header>
+
+      <div key={isExport ? undefined : animKey} className={booksClass}>
+        {books.map((book, i) => {
+          const colors = pillColorForBook(style, book, i);
+          return (
+            <span
+              key={book.bookId}
+              role={interactive ? "link" : undefined}
+              tabIndex={interactive ? 0 : undefined}
+              onMouseEnter={
+                interactive && onBookHover
+                  ? (e) => onBookHover(book, e.clientX, e.clientY)
+                  : undefined
+              }
+              onMouseMove={
+                interactive && onBookHover
+                  ? (e) => onBookHover(book, e.clientX, e.clientY)
+                  : undefined
+              }
+              onMouseLeave={interactive ? onBookLeave : undefined}
+              onClick={
+                interactive
+                  ? () => {
+                      window.location.href = wereadReadingLink(book.bookId);
+                    }
+                  : undefined
+              }
+              onKeyDown={
+                interactive
+                  ? (e) => {
+                      if (e.key === "Enter")
+                        window.location.href = wereadReadingLink(book.bookId);
+                    }
+                  : undefined
+              }
+              className={`${isExport ? "" : "poster-pill"} ${pillClass} ${
+                interactive ? "cursor-pointer transition-transform duration-200 hover:scale-105" : ""
+              }`}
+              style={{
+                backgroundColor: colors.bg,
+                color: colors.text,
+                animationDelay: isExport ? undefined : `${Math.min(i * 5, 250)}ms`,
+                textDecoration:
+                  book.status === "finished" && style.finishedStrikethrough
+                    ? "line-through"
+                    : "none",
+                textDecorationColor: colors.text,
+                wordBreak: "break-word",
+              }}
+            >
+              {book.title}
+            </span>
+          );
+        })}
+      </div>
+
+      {books.length === 0 && (
+        <p
+          className="py-12 text-left text-sm"
+          style={{ color: style.subtitleColor }}
+        >
+          当前筛选条件下没有书籍
+        </p>
+      )}
+
+      <p className={`text-left ${footerClass}`} style={{ color: style.footerColor }}>
+        阅己 ReadSoul · readsoul.cn · 共展示 {books.length} 本
+      </p>
+    </div>
+  );
 }
 
 interface TooltipState {
@@ -62,6 +255,7 @@ interface TooltipState {
 export default function ReadingPosterView({ shelf, notebooks }: Props) {
   const { theme } = useTheme();
   const posterRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const [presetKey, setPresetKey] = useState("readsoul");
   const [style, setStyle] = useState<PosterStyle>(POSTER_PRESETS.readsoul);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -70,6 +264,9 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
   const [month, setMonth] = useState<number | undefined>(1);
   const [styleDrawerOpen, setStyleDrawerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportMode, setExportMode] = useState<"mobile" | "desktop" | null>(
+    null
+  );
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [animKey, setAnimKey] = useState(0);
   const toast = useToast();
@@ -119,25 +316,36 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
   }
 
   async function exportPoster() {
-    const el = posterRef.current;
-    if (!el) return;
     setExporting(true);
     hideTooltip();
+    const mobile = isMobileViewport();
+
     try {
-      el.querySelectorAll(".poster-pill").forEach((node) => {
-        (node as HTMLElement).style.animation = "none";
-        (node as HTMLElement).style.transform = "none";
-      });
+      if (mobile) setExportMode("mobile");
+      else setExportMode("desktop");
+
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
 
+      const el = mobile ? exportRef.current : posterRef.current;
+      if (!el) throw new Error("export target missing");
+
+      el.querySelectorAll(".poster-pill").forEach((node) => {
+        (node as HTMLElement).style.animation = "none";
+        (node as HTMLElement).style.transform = "none";
+      });
+
+      const width = el.offsetWidth;
+      const height = el.scrollHeight;
       const dataUrl = await toPng(el, {
-        pixelRatio: exportPixelRatio(el),
+        pixelRatio: exportPixelRatio(width, height, mobile),
         cacheBust: false,
         skipFonts: true,
         backgroundColor: solidBgFrom(style),
         skipAutoScale: true,
+        width,
+        height,
         style: { borderRadius: "0", overflow: "visible" },
       });
 
@@ -146,6 +354,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
       const file = new File([blob], filename, { type: "image/png" });
 
       if (
+        mobile &&
         typeof navigator !== "undefined" &&
         navigator.share &&
         navigator.canShare?.({ files: [file] })
@@ -171,6 +380,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
     } catch {
       toast.show("导出失败，请重试或换用电脑端导出", "error");
     } finally {
+      setExportMode(null);
       setExporting(false);
     }
   }
@@ -181,11 +391,9 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
   }
 
   const tp = tooltip ? tooltipPos(tooltip.x, tooltip.y) : null;
-  const badges = statBadgeColors(style);
 
   return (
     <div className="relative space-y-4">
-      {/* 顶栏 */}
       <div className="soul-card flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="soul-card-title">阅读海报</h2>
@@ -223,48 +431,64 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
         />
       )}
 
-      {/* 过滤器 */}
       <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                ["all", "全部", counts.total],
-                ["finished", "已读", counts.finished],
-                ["reading", "在读", counts.reading],
-              ] as const
-            ).map(([key, label, n]) => (
-              <button
-                key={key}
-                onClick={() => onFilterChange(() => setStatusFilter(key))}
-                className={`rounded-full border px-3 py-1 text-xs transition-all duration-300 ${
-                  statusFilter === key
-                    ? "border-soul-gold/60 bg-soul-gold/15 text-soul-gold scale-105"
-                    : "border-white/10 text-white/55 hover:border-soul-gold/30"
-                }`}
-              >
-                {label} {n}
-              </button>
-            ))}
-            <span className="mx-1 h-4 w-px bg-white/15" />
-            {(["all", "year", "month"] as TimeScope[]).map((s) => (
-              <button
-                key={s}
-                onClick={() =>
-                  onFilterChange(() => {
-                    setTimeScope(s);
-                    if (s === "year" && !year && years[0]) setYear(years[0]);
-                  })
-                }
-                className={`rounded-full border px-3 py-1 text-xs transition-all duration-300 ${
-                  timeScope === s
-                    ? "border-soul-jade/50 bg-soul-jade/10 text-soul-jade"
-                    : "border-white/10 text-white/55 hover:border-soul-jade/30"
-                }`}
-              >
-                {s === "all" ? "全部时间" : s === "year" ? "按年" : "按月"}
-              </button>
-            ))}
-            {timeScope === "year" && years.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["all", "全部", counts.total],
+              ["finished", "已读", counts.finished],
+              ["reading", "在读", counts.reading],
+            ] as const
+          ).map(([key, label, n]) => (
+            <button
+              key={key}
+              onClick={() => onFilterChange(() => setStatusFilter(key))}
+              className={`rounded-full border px-3 py-1 text-xs transition-all duration-300 ${
+                statusFilter === key
+                  ? "border-soul-gold/60 bg-soul-gold/15 text-soul-gold scale-105"
+                  : "border-white/10 text-white/55 hover:border-soul-gold/30"
+              }`}
+            >
+              {label} {n}
+            </button>
+          ))}
+          <span className="mx-1 h-4 w-px bg-white/15" />
+          {(["all", "year", "month"] as TimeScope[]).map((s) => (
+            <button
+              key={s}
+              onClick={() =>
+                onFilterChange(() => {
+                  setTimeScope(s);
+                  if (s === "year" && !year && years[0]) setYear(years[0]);
+                })
+              }
+              className={`rounded-full border px-3 py-1 text-xs transition-all duration-300 ${
+                timeScope === s
+                  ? "border-soul-jade/50 bg-soul-jade/10 text-soul-jade"
+                  : "border-white/10 text-white/55 hover:border-soul-jade/30"
+              }`}
+            >
+              {s === "all" ? "全部时间" : s === "year" ? "按年" : "按月"}
+            </button>
+          ))}
+          {timeScope === "year" && years.length > 0 && (
+            <select
+              value={year ?? years[0]}
+              onChange={(e) => {
+                setYear(Number(e.target.value));
+                setAnimKey((k) => k + 1);
+              }}
+              className="rounded-lg border border-white/10 bg-ink-900/60 px-2 py-1 text-xs text-soul-cream outline-none"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y} 年
+                </option>
+              ))}
+            </select>
+          )}
+          {timeScope === "month" && years.length > 0 && (
+            <>
               <select
                 value={year ?? years[0]}
                 onChange={(e) => {
@@ -279,148 +503,57 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
                   </option>
                 ))}
               </select>
-            )}
-            {timeScope === "month" && years.length > 0 && (
-              <>
-                <select
-                  value={year ?? years[0]}
-                  onChange={(e) => {
-                    setYear(Number(e.target.value));
-                    setAnimKey((k) => k + 1);
-                  }}
-                  className="rounded-lg border border-white/10 bg-ink-900/60 px-2 py-1 text-xs text-soul-cream outline-none"
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>
-                      {y} 年
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={month}
-                  onChange={(e) => {
-                    setMonth(Number(e.target.value));
-                    setAnimKey((k) => k + 1);
-                  }}
-                  className="rounded-lg border border-white/10 bg-ink-900/60 px-2 py-1 text-xs text-soul-cream outline-none"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m}>
-                      {m} 月
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-          </div>
-
-          {/* 海报预览 */}
-          <div className="rounded-2xl shadow-lg shadow-black/10">
-            <div
-              ref={posterRef}
-              className="px-4 py-6 sm:px-8 sm:py-10"
-              style={{
-                background: `linear-gradient(165deg, ${style.bgFrom} 0%, ${style.bgTo} 100%)`,
-                minHeight: 280,
-              }}
-            >
-              <header className="mb-5 text-left sm:mb-6">
-                <h1
-                  className="font-serif text-lg font-black tracking-wide sm:text-2xl"
-                  style={{ color: style.titleColor }}
-                >
-                  {style.title}
-                </h1>
-                <p
-                  className="mt-1 text-[11px] tracking-[0.22em] sm:mt-1.5 sm:text-sm sm:tracking-[0.28em]"
-                  style={{ color: style.subtitleColor }}
-                >
-                  {style.subtitle}
-                </p>
-                <div className="mt-3 flex flex-wrap justify-start gap-1.5 sm:mt-4 sm:gap-2">
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{
-                      backgroundColor: badges.finished.bg,
-                      color: badges.finished.text,
-                    }}
-                  >
-                    已读 {counts.finished}
-                  </span>
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{
-                      backgroundColor: badges.reading.bg,
-                      color: badges.reading.text,
-                    }}
-                  >
-                    在读 {counts.reading}
-                  </span>
-                </div>
-              </header>
-
-              <div key={animKey} className="text-left leading-relaxed">
-                {filtered.map((book, i) => {
-                  const colors = pillColorForBook(style, book, i);
-                  return (
-                    <span
-                      key={book.bookId}
-                      role="link"
-                      tabIndex={0}
-                      onMouseEnter={(e) =>
-                        showTooltip(book, e.clientX, e.clientY)
-                      }
-                      onMouseMove={(e) =>
-                        showTooltip(book, e.clientX, e.clientY)
-                      }
-                      onMouseLeave={hideTooltip}
-                      onClick={() => {
-                        window.location.href = wereadReadingLink(book.bookId);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter")
-                          window.location.href = wereadReadingLink(
-                            book.bookId
-                          );
-                      }}
-                      className={`poster-pill mb-1.5 mr-1.5 inline-block max-w-[10.5rem] cursor-pointer rounded-full font-medium align-top transition-transform duration-200 hover:scale-105 sm:max-w-xs md:max-w-sm lg:max-w-none ${PILL_SIZE[style.pillSize]}`}
-                      style={{
-                        backgroundColor: colors.bg,
-                        color: colors.text,
-                        animationDelay: `${Math.min(i * 5, 250)}ms`,
-                        textDecoration:
-                          book.status === "finished" &&
-                          style.finishedStrikethrough
-                            ? "line-through"
-                            : "none",
-                        textDecorationColor: colors.text,
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {book.title}
-                    </span>
-                  );
-                })}
-              </div>
-
-              {filtered.length === 0 && (
-                <p
-                  className="py-16 text-left text-sm sm:text-center"
-                  style={{ color: style.subtitleColor }}
-                >
-                  当前筛选条件下没有书籍
-                </p>
-              )}
-
-              <p
-                className="mt-6 text-left text-[10px] tracking-wider sm:mt-8"
-                style={{ color: style.footerColor }}
+              <select
+                value={month}
+                onChange={(e) => {
+                  setMonth(Number(e.target.value));
+                  setAnimKey((k) => k + 1);
+                }}
+                className="rounded-lg border border-white/10 bg-ink-900/60 px-2 py-1 text-xs text-soul-cream outline-none"
               >
-                阅己 ReadSoul · readsoul.cn · 共展示 {filtered.length} 本
-              </p>
-            </div>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {m} 月
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+
+        <div className="rounded-2xl shadow-lg shadow-black/10">
+          <div ref={posterRef}>
+            <PosterCanvas
+              books={filtered}
+              style={style}
+              counts={counts}
+              variant="preview"
+              animKey={animKey}
+              interactive
+              onBookHover={showTooltip}
+              onBookLeave={hideTooltip}
+            />
           </div>
+        </div>
       </div>
+
+      {exportMode && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed -left-[9999px] top-0"
+        >
+          <div ref={exportRef}>
+            <PosterCanvas
+              books={filtered}
+              style={style}
+              counts={counts}
+              variant={
+                exportMode === "mobile" ? "export-mobile" : "export-desktop"
+              }
+            />
+          </div>
+        </div>
+      )}
 
       {tooltip && tp && (
         <div
