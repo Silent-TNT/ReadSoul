@@ -12,6 +12,7 @@ import {
   solidBgFrom,
   pillColorForBook,
   statBadgeColors,
+  statBadgeStrike,
   type PosterStyle,
   type PosterBook,
 } from "@/lib/poster";
@@ -35,6 +36,59 @@ const DESKTOP_PILL = {
   lg: "px-4 py-2 text-sm leading-snug",
 };
 
+const COMPACT_PILL = "inline-block rounded-full font-medium align-top";
+
+/** 与电脑端一致的流式标签云，仅按 variant 缩放字号与间距 */
+function posterLayout(variant: PosterVariant, pillSize: PosterStyle["pillSize"]) {
+  const isExportMobile = variant === "export-mobile";
+  const isExportDesktop = variant === "export-desktop";
+  const isPreview = variant === "preview";
+
+  return {
+    root: isExportMobile
+      ? "w-[375px] px-3 py-4"
+      : isExportDesktop
+        ? "w-[1080px] px-10 py-10"
+        : "px-4 py-6 sm:px-8 sm:py-10",
+    title: isExportMobile
+      ? "text-[15px]"
+      : isPreview
+        ? "text-lg sm:text-2xl"
+        : "text-3xl",
+    subtitle: isExportMobile
+      ? "text-[8px] tracking-[0.16em]"
+      : isPreview
+        ? "text-[10px] tracking-[0.2em] sm:text-sm sm:tracking-[0.28em]"
+        : "text-sm tracking-[0.28em]",
+    badge: isExportMobile
+      ? "rounded-full px-2 py-0.5 text-[8px] font-semibold"
+      : isPreview
+        ? "rounded-full px-2.5 py-0.5 text-[10px] font-semibold sm:px-3 sm:py-1 sm:text-xs"
+        : "rounded-full px-3 py-1 text-sm font-semibold",
+    header: "text-center",
+    badgeRow: isExportMobile
+      ? "mt-1.5 justify-center gap-1"
+      : "mt-3 justify-center gap-1.5 sm:mt-4 sm:gap-2",
+    headerMb: isExportMobile ? "mb-2.5" : "mb-5 sm:mb-6",
+    /** 书名区左对齐，流式换行 */
+    books: isExportMobile
+      ? "flex flex-wrap justify-start gap-x-0.5 gap-y-0.5"
+      : isPreview
+        ? "flex flex-wrap justify-start gap-x-1 gap-y-1 max-sm:gap-x-0.5 max-sm:gap-y-0.5 sm:gap-x-1.5 sm:gap-y-1.5"
+        : "flex flex-wrap justify-start gap-x-1.5 gap-y-1.5",
+    pill: isExportMobile
+      ? `${COMPACT_PILL} px-1 py-px text-[5px] leading-[1.2]`
+      : isPreview
+        ? `${COMPACT_PILL} px-1 py-px text-[5px] leading-[1.2] sm:px-3.5 sm:py-1.5 sm:text-xs ${pillSize === "lg" ? "sm:px-4 sm:py-2 sm:text-sm" : pillSize === "sm" ? "sm:px-2.5 sm:py-1 sm:text-[11px]" : ""}`
+        : `${COMPACT_PILL} ${DESKTOP_PILL[pillSize]}`,
+    footer: isExportMobile
+      ? "mt-3 text-center text-[8px] tracking-wide"
+      : isPreview
+        ? "mt-6 text-center text-[10px] tracking-wider sm:mt-8"
+        : "mt-8 text-center text-[11px] tracking-wider",
+  };
+}
+
 function dataUrlToBlob(dataUrl: string): Blob {
   const [head, body] = dataUrl.split(",");
   const mime = head.match(/:(.*?);/)?.[1] ?? "image/png";
@@ -51,7 +105,7 @@ function isMobileViewport(): boolean {
 
 /** 固定导出宽度下计算 pixelRatio，保证宽图清晰且不超过 canvas 上限 */
 function exportPixelRatio(width: number, height: number, mobile: boolean): number {
-  const base = mobile ? 2.5 : 2;
+  const base = mobile ? 3 : 2;
   const maxSide = 8192;
   const cap = maxSide / Math.max(width, height, 1);
   return Math.max(1, Math.min(base, cap));
@@ -84,90 +138,53 @@ function PosterCanvas({
 }: PosterCanvasProps) {
   const badges = statBadgeColors(style);
   const isExportMobile = variant === "export-mobile";
-  const isExportDesktop = variant === "export-desktop";
-  const isExport = isExportMobile || isExportDesktop;
-  const isPreview = variant === "preview";
-
-  const rootClass = isExportMobile
-    ? "w-[375px] px-3 py-4"
-    : isExportDesktop
-      ? "w-[1080px] px-10 py-10"
-      : "px-4 py-6 sm:px-8 sm:py-10";
-
-  const titleClass = isExportMobile
-    ? "text-[15px]"
-    : isPreview
-      ? "text-lg sm:text-2xl"
-      : "text-3xl";
-
-  const subtitleClass = isExportMobile
-    ? "text-[8px] tracking-[0.16em]"
-    : isPreview
-      ? "text-[11px] tracking-[0.22em] sm:mt-1.5 sm:text-sm sm:tracking-[0.28em]"
-      : "text-sm tracking-[0.28em]";
-
-  const badgeClass = isExportMobile
-    ? "rounded-full px-2 py-0.5 text-[8px] font-semibold"
-    : isPreview
-      ? "rounded-full px-3 py-1 text-xs font-semibold"
-      : "rounded-full px-3 py-1 text-sm font-semibold";
-
-  const booksClass = isExportMobile
-    ? "grid grid-cols-3 gap-1"
-    : isPreview
-      ? "grid grid-cols-2 gap-1 sm:block sm:text-left sm:leading-relaxed"
-      : "text-left leading-relaxed";
-
-  const pillClass = isExportMobile
-    ? "block w-full rounded-md px-1 py-0.5 text-center text-[8px] font-medium leading-[1.25]"
-    : isPreview
-      ? `block w-full rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-snug sm:mb-1.5 sm:mr-1.5 sm:inline-block sm:w-auto sm:max-w-none sm:rounded-full sm:px-3.5 sm:py-1.5 sm:text-xs ${DESKTOP_PILL[style.pillSize]}`
-      : `inline-block rounded-full font-medium ${DESKTOP_PILL[style.pillSize]} mb-1.5 mr-1.5`;
-
-  const footerClass = isExportMobile
-    ? "mt-3 text-[8px] tracking-wide"
-    : isPreview
-      ? "mt-6 text-[10px] tracking-wider sm:mt-8"
-      : "mt-8 text-[11px] tracking-wider";
+  const isExport = variant === "export-mobile" || variant === "export-desktop";
+  const layout = posterLayout(variant, style.pillSize);
 
   return (
     <div
-      className={rootClass}
+      className={layout.root}
       style={{
         background: `linear-gradient(165deg, ${style.bgFrom} 0%, ${style.bgTo} 100%)`,
         minHeight: isExportMobile ? undefined : 280,
       }}
     >
-      <header className={`text-left ${isExportMobile ? "mb-2.5" : "mb-5 sm:mb-6"}`}>
+      <header className={`${layout.header} ${layout.headerMb}`}>
         <h1
-          className={`font-serif font-black tracking-wide ${titleClass}`}
+          className={`font-serif font-black tracking-wide ${layout.title}`}
           style={{ color: style.titleColor }}
         >
           {style.title}
         </h1>
         <p
-          className={`mt-1 ${subtitleClass}`}
+          className={`mt-1 ${layout.subtitle}`}
           style={{ color: style.subtitleColor }}
         >
           {style.subtitle}
         </p>
-        <div
-          className={`flex flex-wrap justify-start ${isExportMobile ? "mt-1.5 gap-1" : "mt-3 gap-1.5 sm:mt-4 sm:gap-2"}`}
-        >
+        <div className={`flex flex-wrap ${layout.badgeRow}`}>
           <span
-            className={badgeClass}
+            className={layout.badge}
             style={{
               backgroundColor: badges.finished.bg,
               color: badges.finished.text,
+              textDecoration: statBadgeStrike(style, "finished")
+                ? "line-through"
+                : "none",
+              textDecorationColor: badges.finished.text,
             }}
           >
             已读 {counts.finished}
           </span>
           <span
-            className={badgeClass}
+            className={layout.badge}
             style={{
               backgroundColor: badges.reading.bg,
               color: badges.reading.text,
+              textDecoration: statBadgeStrike(style, "reading")
+                ? "line-through"
+                : "none",
+              textDecorationColor: badges.reading.text,
             }}
           >
             在读 {counts.reading}
@@ -175,7 +192,7 @@ function PosterCanvas({
         </div>
       </header>
 
-      <div key={isExport ? undefined : animKey} className={booksClass}>
+      <div key={isExport ? undefined : animKey} className={layout.books}>
         {books.map((book, i) => {
           const colors = pillColorForBook(style, book, i);
           return (
@@ -209,7 +226,7 @@ function PosterCanvas({
                     }
                   : undefined
               }
-              className={`${isExport ? "" : "poster-pill"} ${pillClass} ${
+              className={`${isExport ? "" : "poster-pill"} ${layout.pill} ${
                 interactive ? "cursor-pointer transition-transform duration-200 hover:scale-105" : ""
               }`}
               style={{
@@ -232,14 +249,14 @@ function PosterCanvas({
 
       {books.length === 0 && (
         <p
-          className="py-12 text-left text-sm"
+          className="py-12 text-center text-sm"
           style={{ color: style.subtitleColor }}
         >
           当前筛选条件下没有书籍
         </p>
       )}
 
-      <p className={`text-left ${footerClass}`} style={{ color: style.footerColor }}>
+      <p className={layout.footer} style={{ color: style.footerColor }}>
         阅己 ReadSoul · readsoul.cn · 共展示 {books.length} 本
       </p>
     </div>
