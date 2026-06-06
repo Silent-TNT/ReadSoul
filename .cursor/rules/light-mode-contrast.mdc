@@ -1,0 +1,14 @@
+---
+description: 亮色模式文字对比度 — 修改 UI 时必须保证白天可读
+globs: **/*.{tsx,css}
+alwaysApply: true
+---
+
+# 亮色模式可读性
+
+用户多次反馈白天模式下文字发灰、不明显。任何 UI 改动须同时验证 `[data-theme="light"]`：
+
+1. 副文案优先用 `soul-card-sub` 或 `var(--c-muted)`，不要硬编码 `text-white/40`
+2. 新增 `text-white/*` 时必须在 `app/globals.css` 补充对应 light 覆盖
+3. 品牌色在亮色下：`text-soul-gold` / `text-soul-amber` / `text-soul-jade` 已有加深规则，勿再用过浅透明度
+4. input/textarea placeholder 需可读（已全局覆盖）

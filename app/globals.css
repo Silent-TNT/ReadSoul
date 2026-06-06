@@ -1,0 +1,416 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 主题变量（默认暗色）── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #0b0b0f;
+  --c-surface: rgba(22, 22, 31, 0.6);
+  --c-surface-solid: #16161f;
+  --c-text: #f3ead6;
+  --c-text-strong: #f7efdc;
+  --c-muted: rgba(255, 255, 255, 0.48);
+  --c-muted-strong: rgba(255, 255, 255, 0.68);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --c-bg: #f5efe2;
+  --c-surface: rgba(255, 253, 248, 0.92);
+  --c-surface-solid: #fffdf8;
+  --c-text: #1c1813;
+  --c-text-strong: #0f0d0a;
+  --c-muted: rgba(40, 33, 24, 0.62);
+  --c-muted-strong: rgba(40, 33, 24, 0.82);
+}
+
+html,
+body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+body {
+  font-family: var(--font-sans, "Noto Sans SC"), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 优雅滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 140, 0.3);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 140, 0.5);
+}
+
+@layer components {
+  .soul-card {
+    @apply relative rounded-2xl border p-5 backdrop-blur-sm sm:p-6;
+    background-color: var(--c-surface);
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 20px 40px -20px rgba(0, 0, 0, 0.6);
+  }
+  .soul-card-title {
+    @apply font-serif text-lg font-medium tracking-wide sm:text-xl;
+    color: var(--c-text-strong);
+  }
+  .soul-card-sub {
+    @apply mt-0.5 text-xs;
+    color: var(--c-muted);
+  }
+  .soul-input {
+    @apply w-full rounded-xl border px-3 py-2 text-sm outline-none transition;
+    background-color: var(--c-surface-solid);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--c-text);
+  }
+  .soul-input::placeholder {
+    color: var(--c-muted);
+  }
+  .soul-input:focus {
+    border-color: rgba(200, 164, 92, 0.45);
+  }
+  .gold-text {
+    @apply bg-gradient-to-r from-soul-amber via-soul-gold to-soul-amber bg-clip-text text-transparent;
+  }
+}
+
+.grain {
+  background-image: radial-gradient(
+      circle at 20% 20%,
+      rgba(200, 164, 92, 0.08),
+      transparent 40%
+    ),
+    radial-gradient(circle at 80% 0%, rgba(127, 176, 160, 0.06), transparent 45%);
+}
+
+/* ──────────────────────────────────────────────
+   亮色模式：覆盖暗色 Tailwind 工具类，避免逐组件改写
+   ────────────────────────────────────────────── */
+[data-theme="light"] .soul-card {
+  border-color: rgba(40, 33, 24, 0.1);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+    0 24px 48px -28px rgba(70, 55, 30, 0.25);
+}
+[data-theme="light"] .soul-card-sub {
+  color: var(--c-muted);
+}
+
+[data-theme="light"] .text-soul-cream {
+  color: var(--c-text);
+}
+
+[data-theme="light"] .text-soul-cream\/80,
+[data-theme="light"] .text-soul-cream\/85,
+[data-theme="light"] .text-soul-cream\/90 {
+  color: var(--c-text-strong);
+}
+
+[data-theme="light"] .text-soul-gold,
+[data-theme="light"] .text-soul-gold\/70,
+[data-theme="light"] .text-soul-gold\/80 {
+  color: #7a5618;
+}
+[data-theme="light"] .text-soul-amber {
+  color: #8a5a12;
+}
+[data-theme="light"] .text-soul-jade {
+  color: #1f5c4a;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: rgba(40, 33, 24, 0.42);
+}
+
+[data-theme="light"] .text-white\/25 {
+  color: rgba(40, 33, 24, 0.42);
+}
+[data-theme="light"] .text-white\/20 {
+  color: rgba(40, 33, 24, 0.38);
+}
+[data-theme="light"] .text-white\/30 {
+  color: rgba(40, 33, 24, 0.48);
+}
+[data-theme="light"] .text-white\/35 {
+  color: rgba(40, 33, 24, 0.55);
+}
+[data-theme="light"] .text-white\/40 {
+  color: rgba(40, 33, 24, 0.6);
+}
+[data-theme="light"] .text-white\/45 {
+  color: rgba(40, 33, 24, 0.65);
+}
+[data-theme="light"] .text-white\/50 {
+  color: rgba(40, 33, 24, 0.68);
+}
+[data-theme="light"] .text-white\/55 {
+  color: rgba(40, 33, 24, 0.7);
+}
+[data-theme="light"] .text-white\/60 {
+  color: rgba(40, 33, 24, 0.74);
+}
+[data-theme="light"] .text-white\/65 {
+  color: rgba(40, 33, 24, 0.76);
+}
+[data-theme="light"] .text-white\/70 {
+  color: rgba(40, 33, 24, 0.82);
+}
+[data-theme="light"] .text-white\/80 {
+  color: rgba(40, 33, 24, 0.88);
+}
+[data-theme="light"] .text-white\/90 {
+  color: rgba(40, 33, 24, 0.94);
+}
+
+[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(40, 33, 24, 0.1);
+}
+[data-theme="light"] .bg-white\/5 {
+  background-color: rgba(40, 33, 24, 0.05);
+}
+[data-theme="light"] .bg-white\/\[0\.02\] {
+  background-color: rgba(40, 33, 24, 0.035);
+}
+[data-theme="light"] .bg-ink-950\/70 {
+  background-color: rgba(245, 239, 226, 0.82);
+}
+[data-theme="light"] .bg-ink-900\/80 {
+  background-color: #fffdf8;
+}
+[data-theme="light"] .bg-ink-900\/60 {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+[data-theme="light"] .bg-ink-700 {
+  background-color: #e7ddc9;
+}
+
+[data-theme="light"] .border-white\/5 {
+  border-color: rgba(40, 33, 24, 0.08);
+}
+[data-theme="light"] .border-white\/10 {
+  border-color: rgba(40, 33, 24, 0.12);
+}
+[data-theme="light"] .soul-input {
+  background-color: var(--c-surface-solid);
+  border-color: rgba(40, 33, 24, 0.14);
+  color: var(--c-text);
+}
+[data-theme="light"] .border-white\/15 {
+  border-color: rgba(40, 33, 24, 0.16);
+}
+
+/* 分享卡片（人格/回顾）在亮色下用暖纸渐变，覆盖暗色渐变 */
+[data-theme="light"] .share-surface {
+  background-image: linear-gradient(
+    to bottom right,
+    #fffdf8,
+    #f3ead6
+  ) !important;
+  border-color: rgba(200, 164, 92, 0.4) !important;
+}
+
+/* 分享图内文：亮色下强制深色正文，避免 cream-on-cream */
+[data-theme="light"] .share-surface .share-kicker.share-kicker--opp {
+  color: #8a5a12 !important;
+}
+[data-theme="light"] .share-surface .share-kicker.share-kicker--similar {
+  color: #1a6b48 !important;
+}
+[data-theme="light"] .share-surface .share-book {
+  color: #7a5618 !important;
+}
+[data-theme="light"] .share-surface .share-text {
+  color: #1c1813 !important;
+}
+[data-theme="light"] .share-surface .share-divider {
+  background-color: rgba(40, 33, 24, 0.12) !important;
+}
+[data-theme="light"] .share-surface .share-thought-box {
+  background-color: rgba(40, 33, 24, 0.05) !important;
+  border-color: rgba(200, 164, 92, 0.35) !important;
+}
+[data-theme="light"] .share-surface .share-thought-label {
+  color: #7a5618 !important;
+}
+[data-theme="light"] .share-surface .share-thought-body {
+  color: #1c1813 !important;
+}
+[data-theme="light"] .share-surface .share-footer {
+  border-color: rgba(40, 33, 24, 0.12) !important;
+  color: #7a5618 !important;
+}
+
+@keyframes drawer-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fade-backdrop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* ── Markdown 渲染样式 ── */
+.md-body {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.md-body > *:first-child {
+  margin-top: 0;
+}
+.md-body > *:last-child {
+  margin-bottom: 0;
+}
+.md-body p {
+  margin: 0.5em 0;
+}
+.md-body .md-h {
+  font-family: "Noto Serif SC", serif;
+  font-weight: 700;
+  margin: 0.8em 0 0.4em;
+  color: var(--c-text-strong);
+}
+.md-body .md-h1 {
+  font-size: 1.25em;
+}
+.md-body .md-h2 {
+  font-size: 1.15em;
+}
+.md-body .md-h3 {
+  font-size: 1.05em;
+}
+.md-body .md-ul,
+.md-body .md-ol {
+  margin: 0.5em 0;
+  padding-left: 1.3em;
+}
+.md-body .md-ul {
+  list-style: disc;
+}
+.md-body .md-ol {
+  list-style: decimal;
+}
+.md-body li {
+  margin: 0.25em 0;
+}
+.md-body .md-ul li::marker,
+.md-body .md-ol li::marker {
+  color: #c8a45c;
+}
+.md-body strong {
+  color: var(--c-text-strong);
+  font-weight: 700;
+}
+.md-body em {
+  font-style: italic;
+}
+.md-body .md-a {
+  color: #7fb0a0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body .md-code {
+  background: rgba(200, 164, 92, 0.14);
+  color: #e0b878;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.md-body .md-pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  margin: 0.6em 0;
+  font-size: 0.82em;
+}
+[data-theme="light"] .md-body .md-pre {
+  background: rgba(40, 33, 24, 0.06);
+  border-color: rgba(40, 33, 24, 0.1);
+}
+.md-body .md-quote {
+  border-left: 3px solid rgba(200, 164, 92, 0.5);
+  padding-left: 0.9em;
+  margin: 0.6em 0;
+  color: var(--c-text);
+  opacity: 0.85;
+}
+
+.animate-drawer-left {
+  animation: drawer-in-left 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-drawer-right {
+  animation: drawer-in-right 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-backdrop {
+  animation: fade-backdrop 0.3s ease both;
+}
+
+@keyframes poster-pill-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.poster-pill {
+  animation: poster-pill-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 阅读海报悬停 Tooltip — 随站点明/暗主题 */
+.poster-tooltip {
+  background: rgba(16, 16, 24, 0.97);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.poster-tooltip-title {
+  color: #f3ead6;
+}
+.poster-tooltip-meta {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.poster-tooltip[data-theme="light"] {
+  background: rgba(255, 253, 248, 0.98);
+  border-color: rgba(40, 33, 24, 0.12);
+  box-shadow: 0 8px 28px rgba(40, 33, 24, 0.12);
+}
+.poster-tooltip[data-theme="light"] .poster-tooltip-title {
+  color: #1a2332;
+}
+.poster-tooltip[data-theme="light"] .poster-tooltip-meta {
+  color: #64748b;
+}
