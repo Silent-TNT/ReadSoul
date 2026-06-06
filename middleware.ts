@@ -13,7 +13,13 @@ export function middleware(req: NextRequest) {
   }
 
   if (!validateBetaGate(req)) {
-    return NextResponse.json({ error: "未授权访问" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          "Beta 门禁校验失败。请确认 Railway 已配置 BETA_GATE_SECRET 并完成重新部署。",
+      },
+      { status: 401 }
+    );
   }
 
   if (!extractWrkKey(req)) {

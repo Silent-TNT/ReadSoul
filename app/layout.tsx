@@ -29,6 +29,9 @@ export const viewport: Viewport = {
   themeColor: "#0b0b0f",
 };
 
+/** 运行时注入 Beta 密钥，避免静态构建时丢失环境变量 */
+export const dynamic = "force-dynamic";
+
 // 在首屏渲染前根据 localStorage 设置主题，避免闪烁
 const themeInitScript = `(function(){try{var t=localStorage.getItem('readsoul_theme');if(t!=='light'&&t!=='dark'){t='dark';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();`;
 
@@ -50,7 +53,10 @@ export default function RootLayout({
           <script dangerouslySetInnerHTML={{ __html: betaInitScript }} />
         ) : null}
       </head>
-      <body className="min-h-screen antialiased">
+      <body
+        className="min-h-screen antialiased"
+        {...(betaSecret ? { "data-beta-gate": betaSecret } : {})}
+      >
         <BetaGateProvider secret={betaSecret}>
           <ThemeProvider>
             <ToastProvider>
