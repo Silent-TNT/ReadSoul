@@ -46,43 +46,43 @@ function posterLayout(variant: PosterVariant, pillSize: PosterStyle["pillSize"])
 
   return {
     root: isExportMobile
-      ? "w-[375px] px-3 py-4"
+      ? "w-[750px] px-6 py-8"
       : isExportDesktop
         ? "w-[1080px] px-10 py-10"
         : "px-4 py-6 sm:px-8 sm:py-10",
     title: isExportMobile
-      ? "text-[15px]"
+      ? "text-[30px]"
       : isPreview
         ? "text-lg sm:text-2xl"
         : "text-3xl",
     subtitle: isExportMobile
-      ? "text-[8px] tracking-[0.16em]"
+      ? "text-[16px] tracking-[0.16em]"
       : isPreview
         ? "text-[10px] tracking-[0.2em] sm:text-sm sm:tracking-[0.28em]"
         : "text-sm tracking-[0.28em]",
     badge: isExportMobile
-      ? "rounded-full px-2 py-0.5 text-[8px] font-semibold"
+      ? "inline-flex shrink-0 whitespace-nowrap rounded-full px-4 py-1 text-[16px] font-semibold leading-none"
       : isPreview
-        ? "rounded-full px-2.5 py-0.5 text-[10px] font-semibold sm:px-3 sm:py-1 sm:text-xs"
-        : "rounded-full px-3 py-1 text-sm font-semibold",
+        ? "inline-flex shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-none sm:px-3 sm:py-1 sm:text-xs"
+        : "inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold leading-none",
     header: "text-center",
     badgeRow: isExportMobile
-      ? "mt-1.5 justify-center gap-1"
+      ? "mt-3 justify-center gap-2"
       : "mt-3 justify-center gap-1.5 sm:mt-4 sm:gap-2",
-    headerMb: isExportMobile ? "mb-2.5" : "mb-5 sm:mb-6",
+    headerMb: isExportMobile ? "mb-5" : "mb-5 sm:mb-6",
     /** 书名区左对齐，流式换行 */
     books: isExportMobile
-      ? "flex flex-wrap justify-start gap-x-0.5 gap-y-0.5"
+      ? "flex flex-wrap justify-start gap-x-1 gap-y-1"
       : isPreview
         ? "flex flex-wrap justify-start gap-x-1 gap-y-1 max-sm:gap-x-0.5 max-sm:gap-y-0.5 sm:gap-x-1.5 sm:gap-y-1.5"
         : "flex flex-wrap justify-start gap-x-1.5 gap-y-1.5",
     pill: isExportMobile
-      ? `${COMPACT_PILL} px-1 py-px text-[5px] leading-[1.2]`
+      ? `${COMPACT_PILL} px-2 py-0.5 text-[10px] leading-[1.2]`
       : isPreview
         ? `${COMPACT_PILL} px-1 py-px text-[5px] leading-[1.2] sm:px-3.5 sm:py-1.5 sm:text-xs ${pillSize === "lg" ? "sm:px-4 sm:py-2 sm:text-sm" : pillSize === "sm" ? "sm:px-2.5 sm:py-1 sm:text-[11px]" : ""}`
         : `${COMPACT_PILL} ${DESKTOP_PILL[pillSize]}`,
     footer: isExportMobile
-      ? "mt-3 text-center text-[8px] tracking-wide"
+      ? "mt-6 text-center text-[16px] tracking-wide"
       : isPreview
         ? "mt-6 text-center text-[10px] tracking-wider sm:mt-8"
         : "mt-8 text-center text-[11px] tracking-wider",
@@ -103,12 +103,12 @@ function isMobileViewport(): boolean {
   return window.matchMedia("(max-width: 639px)").matches;
 }
 
-/** 固定导出宽度下计算 pixelRatio，保证宽图清晰且不超过 canvas 上限 */
+/** 固定导出宽度下计算 pixelRatio；宽画布 + 更高倍率以提升清晰度 */
 function exportPixelRatio(width: number, height: number, mobile: boolean): number {
-  const base = mobile ? 3 : 2;
   const maxSide = 8192;
   const cap = maxSide / Math.max(width, height, 1);
-  return Math.max(1, Math.min(base, cap));
+  const base = mobile ? 4 : 2;
+  return Math.max(1.5, Math.min(base, cap));
 }
 
 interface PosterCanvasProps {
