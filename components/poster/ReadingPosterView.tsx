@@ -29,10 +29,29 @@ type StatusFilter = "all" | "finished" | "reading";
 type TimeScope = "all" | "year" | "month";
 
 const PILL_SIZE = {
-  sm: "px-2.5 py-1 text-[11px]",
-  md: "px-3.5 py-1.5 text-xs",
-  lg: "px-4 py-2 text-sm",
+  sm: "px-2 py-0.5 text-[10px] leading-snug sm:px-2.5 sm:py-1 sm:text-[11px]",
+  md: "px-2.5 py-1 text-[10px] leading-snug sm:px-3.5 sm:py-1.5 sm:text-xs",
+  lg: "px-3 py-1.5 text-[11px] leading-snug sm:px-4 sm:py-2 sm:text-sm",
 };
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(",");
+  const mime = head.match(/:(.*?);/)?.[1] ?? "image/png";
+  const bin = atob(body);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+function exportPixelRatio(el: HTMLElement): number {
+  const w = el.offsetWidth;
+  const h = el.scrollHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  // 移动端 canvas 尺寸上限，避免 html-to-image 内存溢出
+  const maxSide = 4096;
+  const cap = maxSide / Math.max(w, h, 1);
+  return Math.max(1, Math.min(dpr, cap, 2));
+}
 
 interface TooltipState {
   book: PosterBook;
@@ -109,21 +128,48 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
         (node as HTMLElement).style.animation = "none";
         (node as HTMLElement).style.transform = "none";
       });
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
 
       const dataUrl = await toPng(el, {
-        pixelRatio: 2,
-        cacheBust: true,
+        pixelRatio: exportPixelRatio(el),
+        cacheBust: false,
+        skipFonts: true,
         backgroundColor: solidBgFrom(style),
         skipAutoScale: true,
         style: { borderRadius: "0", overflow: "visible" },
       });
+
+      const blob = dataUrlToBlob(dataUrl);
+      const filename = `阅己-阅读海报-${Date.now()}.png`;
+      const file = new File([blob], filename, { type: "image/png" });
+
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.share &&
+        navigator.canShare?.({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "阅己 · 阅读海报",
+            text: "readsoul.cn",
+          });
+          toast.show("海报已生成", "success");
+          return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return;
+        }
+      }
+
       const a = document.createElement("a");
-      a.download = `阅己-阅读海报-${Date.now()}.png`;
+      a.download = filename;
       a.href = dataUrl;
       a.click();
+      toast.show("海报已保存", "success");
     } catch {
-      toast.show("导出失败，请重试", "error");
+      toast.show("导出失败，请重试或换用电脑端导出", "error");
     } finally {
       setExporting(false);
     }
@@ -272,26 +318,26 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
           <div className="overflow-hidden rounded-2xl shadow-lg shadow-black/10">
             <div
               ref={posterRef}
-              className="px-5 py-8 sm:px-8 sm:py-10"
+              className="px-4 py-6 sm:px-8 sm:py-10"
               style={{
                 background: `linear-gradient(165deg, ${style.bgFrom} 0%, ${style.bgTo} 100%)`,
                 minHeight: 280,
               }}
             >
-              <header className="mb-6 text-center">
+              <header className="mb-5 text-left sm:mb-6">
                 <h1
-                  className="font-serif text-xl font-black tracking-wide sm:text-2xl"
+                  className="font-serif text-lg font-black tracking-wide sm:text-2xl"
                   style={{ color: style.titleColor }}
                 >
                   {style.title}
                 </h1>
                 <p
-                  className="mt-1.5 text-xs tracking-[0.28em] sm:text-sm"
+                  className="mt-1 text-[11px] tracking-[0.22em] sm:mt-1.5 sm:text-sm sm:tracking-[0.28em]"
                   style={{ color: style.subtitleColor }}
                 >
                   {style.subtitle}
                 </p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <div className="mt-3 flex flex-wrap justify-start gap-1.5 sm:mt-4 sm:gap-2">
                   <span
                     className="rounded-full px-3 py-1 text-xs font-semibold"
                     style={{
@@ -315,7 +361,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
 
               <div
                 key={animKey}
-                className="flex flex-wrap justify-center gap-2 sm:gap-2.5"
+                className="flex flex-wrap justify-start gap-1.5 sm:gap-2.5"
               >
                 {filtered.map((book, i) => {
                   const colors = pillColorForBook(style, book, i);
@@ -340,7 +386,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
                             book.bookId
                           );
                       }}
-                      className={`poster-pill inline-block cursor-pointer rounded-full font-medium transition-transform duration-200 hover:scale-105 ${PILL_SIZE[style.pillSize]}`}
+                      className={`poster-pill inline-block max-w-[calc(50%-0.375rem)] cursor-pointer rounded-full font-medium transition-transform duration-200 hover:scale-105 sm:max-w-[11rem] md:max-w-none ${PILL_SIZE[style.pillSize]}`}
                       style={{
                         backgroundColor: colors.bg,
                         color: colors.text,
@@ -351,6 +397,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
                             ? "line-through"
                             : "none",
                         textDecorationColor: colors.text,
+                        wordBreak: "break-word",
                       }}
                     >
                       {book.title}
@@ -361,7 +408,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
 
               {filtered.length === 0 && (
                 <p
-                  className="py-16 text-center text-sm"
+                  className="py-16 text-left text-sm sm:text-center"
                   style={{ color: style.subtitleColor }}
                 >
                   当前筛选条件下没有书籍
@@ -369,7 +416,7 @@ export default function ReadingPosterView({ shelf, notebooks }: Props) {
               )}
 
               <p
-                className="mt-8 text-center text-[10px] tracking-wider"
+                className="mt-6 text-left text-[10px] tracking-wider sm:mt-8"
                 style={{ color: style.footerColor }}
               >
                 阅己 ReadSoul · readsoul.cn · 共展示 {filtered.length} 本
