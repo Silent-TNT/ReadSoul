@@ -131,16 +131,26 @@ export function statBadgeColors(
   style: PosterStyle
 ): { finished: PillColor; reading: PillColor } {
   if (style.multicolor) {
-    // 与六色 pill 体系一致：绿 = 已读，橙 = 在读
-    return {
-      finished: PILL_PALETTE[0],
-      reading: PILL_PALETTE[2],
+    // 六色模式下书底按序号着色，徽章用中性色 + 删除线/无删除线区分
+    const neutral: PillColor = {
+      bg: "rgba(100, 116, 139, 0.14)",
+      text: style.subtitleColor,
     };
+    return { finished: neutral, reading: neutral };
   }
   return {
     finished: { bg: style.finishedBg, text: style.finishedText },
     reading: { bg: style.readingBg, text: style.readingText },
   };
+}
+
+/** 六色模式下顶部徽章用删除线区分已读/在读 */
+export function statBadgeStrike(
+  style: PosterStyle,
+  kind: "finished" | "reading"
+): boolean {
+  if (!style.multicolor) return false;
+  return kind === "finished";
 }
 
 export function buildPosterBooks(
