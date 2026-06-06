@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { formatDate, wereadReadingLink } from "@/lib/format";
 import {
@@ -13,6 +13,8 @@ import {
   pillColorForBook,
   statBadgeColors,
   statBadgeStrike,
+  computePosterTypography,
+  type PosterLayoutVariant,
   type PosterStyle,
   type PosterBook,
 } from "@/lib/poster";
@@ -30,63 +32,27 @@ type StatusFilter = "all" | "finished" | "reading";
 type TimeScope = "all" | "year" | "month";
 type PosterVariant = "preview" | "export-mobile" | "export-desktop";
 
-const DESKTOP_PILL = {
-  sm: "px-2.5 py-1 text-[11px] leading-snug",
-  md: "px-3.5 py-1.5 text-xs leading-snug",
-  lg: "px-4 py-2 text-sm leading-snug",
-};
-
 const COMPACT_PILL = "inline-block rounded-full font-medium align-top";
 
-/** 与电脑端一致的流式标签云，仅按 variant 缩放字号与间距 */
-function posterLayout(variant: PosterVariant, pillSize: PosterStyle["pillSize"]) {
-  const isExportMobile = variant === "export-mobile";
-  const isExportDesktop = variant === "export-desktop";
-  const isPreview = variant === "preview";
+function useMinWidthSm(): boolean {
+  const [smUp, setSmUp] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setSmUp(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return smUp;
+}
 
-  return {
-    root: isExportMobile
-      ? "w-[750px] px-6 py-8"
-      : isExportDesktop
-        ? "w-[1080px] px-10 py-10"
-        : "px-4 py-6 sm:px-8 sm:py-10",
-    title: isExportMobile
-      ? "text-[30px]"
-      : isPreview
-        ? "text-lg sm:text-2xl"
-        : "text-3xl",
-    subtitle: isExportMobile
-      ? "text-[16px] tracking-[0.16em]"
-      : isPreview
-        ? "text-[10px] tracking-[0.2em] sm:text-sm sm:tracking-[0.28em]"
-        : "text-sm tracking-[0.28em]",
-    badge: isExportMobile
-      ? "inline-flex shrink-0 whitespace-nowrap rounded-full px-4 py-1 text-[16px] font-semibold leading-none"
-      : isPreview
-        ? "inline-flex shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold leading-none sm:px-3 sm:py-1 sm:text-xs"
-        : "inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold leading-none",
-    header: "text-center",
-    badgeRow: isExportMobile
-      ? "mt-3 justify-center gap-2"
-      : "mt-3 justify-center gap-1.5 sm:mt-4 sm:gap-2",
-    headerMb: isExportMobile ? "mb-5" : "mb-5 sm:mb-6",
-    /** 书名区左对齐，流式换行 */
-    books: isExportMobile
-      ? "flex flex-wrap justify-start gap-x-1 gap-y-1"
-      : isPreview
-        ? "flex flex-wrap justify-start gap-x-1 gap-y-1 max-sm:gap-x-0.5 max-sm:gap-y-0.5 sm:gap-x-1.5 sm:gap-y-1.5"
-        : "flex flex-wrap justify-start gap-x-1.5 gap-y-1.5",
-    pill: isExportMobile
-      ? `${COMPACT_PILL} px-2 py-0.5 text-[10px] leading-[1.2]`
-      : isPreview
-        ? `${COMPACT_PILL} px-1 py-px text-[5px] leading-[1.2] sm:px-3.5 sm:py-1.5 sm:text-xs ${pillSize === "lg" ? "sm:px-4 sm:py-2 sm:text-sm" : pillSize === "sm" ? "sm:px-2.5 sm:py-1 sm:text-[11px]" : ""}`
-        : `${COMPACT_PILL} ${DESKTOP_PILL[pillSize]}`,
-    footer: isExportMobile
-      ? "mt-6 text-center text-[16px] tracking-wide"
-      : isPreview
-        ? "mt-6 text-center text-[10px] tracking-wider sm:mt-8"
-        : "mt-8 text-center text-[11px] tracking-wider",
-  };
+function resolveLayoutVariant(
+  variant: PosterVariant,
+  previewSmUp: boolean
+): PosterLayoutVariant {
+  if (variant === "export-mobile") return "export-mobile";
+  if (variant === "export-desktop") return "export-desktop";
+  return previewSmUp ? "preview-desktop" : "preview-mobile";
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -137,35 +103,55 @@ function PosterCanvas({
   onBookLeave,
 }: PosterCanvasProps) {
   const badges = statBadgeColors(style);
+  const previewSmUp = useMinWidthSm();
   const isExportMobile = variant === "export-mobile";
   const isExport = variant === "export-mobile" || variant === "export-desktop";
-  const layout = posterLayout(variant, style.pillSize);
+  const layoutVariant = resolveLayoutVariant(variant, previewSmUp);
+  const typo = useMemo(
+    () =>
+      computePosterTypography(layoutVariant, style.pillSize, style.fontScale),
+    [layoutVariant, style.pillSize, style.fontScale]
+  );
 
   return (
     <div
-      className={layout.root}
+      className={typo.rootWidth ? undefined : "w-full"}
       style={{
+        width: typo.rootWidth,
+        padding: `${typo.rootPaddingY}px ${typo.rootPaddingX}px`,
         background: `linear-gradient(165deg, ${style.bgFrom} 0%, ${style.bgTo} 100%)`,
         minHeight: isExportMobile ? undefined : 280,
       }}
     >
-      <header className={`${layout.header} ${layout.headerMb}`}>
+      <header
+        className="text-center"
+        style={{ marginBottom: typo.headerMb }}
+      >
         <h1
-          className={`font-serif font-black tracking-wide ${layout.title}`}
-          style={{ color: style.titleColor }}
+          className="font-serif font-black tracking-wide"
+          style={{ color: style.titleColor, fontSize: typo.title }}
         >
           {style.title}
         </h1>
         <p
-          className={`mt-1 ${layout.subtitle}`}
-          style={{ color: style.subtitleColor }}
+          className="mt-1"
+          style={{
+            color: style.subtitleColor,
+            fontSize: typo.subtitle,
+            letterSpacing: typo.subtitleTracking,
+          }}
         >
           {style.subtitle}
         </p>
-        <div className={`flex flex-wrap ${layout.badgeRow}`}>
+        <div
+          className="flex flex-wrap justify-center"
+          style={{ marginTop: typo.badgeMt, gap: typo.badgeGap }}
+        >
           <span
-            className={layout.badge}
+            className="inline-flex shrink-0 whitespace-nowrap rounded-full font-semibold leading-none"
             style={{
+              fontSize: typo.badge,
+              padding: `${typo.badgePaddingY}px ${typo.badgePaddingX}px`,
               backgroundColor: badges.finished.bg,
               color: badges.finished.text,
               textDecoration: statBadgeStrike(style, "finished")
@@ -177,8 +163,10 @@ function PosterCanvas({
             已读 {counts.finished}
           </span>
           <span
-            className={layout.badge}
+            className="inline-flex shrink-0 whitespace-nowrap rounded-full font-semibold leading-none"
             style={{
+              fontSize: typo.badge,
+              padding: `${typo.badgePaddingY}px ${typo.badgePaddingX}px`,
               backgroundColor: badges.reading.bg,
               color: badges.reading.text,
               textDecoration: statBadgeStrike(style, "reading")
@@ -192,7 +180,11 @@ function PosterCanvas({
         </div>
       </header>
 
-      <div key={isExport ? undefined : animKey} className={layout.books}>
+      <div
+        key={isExport ? undefined : animKey}
+        className="flex flex-wrap justify-start"
+        style={{ gap: `${typo.bookGapY}px ${typo.bookGapX}px` }}
+      >
         {books.map((book, i) => {
           const colors = pillColorForBook(style, book, i);
           return (
@@ -226,10 +218,13 @@ function PosterCanvas({
                     }
                   : undefined
               }
-              className={`${isExport ? "" : "poster-pill"} ${layout.pill} ${
+              className={`${isExport ? "" : "poster-pill"} ${COMPACT_PILL} ${
                 interactive ? "cursor-pointer transition-transform duration-200 hover:scale-105" : ""
               }`}
               style={{
+                fontSize: typo.pill,
+                lineHeight: 1.2,
+                padding: `${typo.pillPaddingY}px ${typo.pillPaddingX}px`,
                 backgroundColor: colors.bg,
                 color: colors.text,
                 animationDelay: isExport ? undefined : `${Math.min(i * 5, 250)}ms`,
@@ -249,14 +244,21 @@ function PosterCanvas({
 
       {books.length === 0 && (
         <p
-          className="py-12 text-center text-sm"
-          style={{ color: style.subtitleColor }}
+          className="py-12 text-center"
+          style={{ color: style.subtitleColor, fontSize: typo.subtitle }}
         >
           当前筛选条件下没有书籍
         </p>
       )}
 
-      <p className={layout.footer} style={{ color: style.footerColor }}>
+      <p
+        className="text-center tracking-wide"
+        style={{
+          color: style.footerColor,
+          fontSize: typo.footer,
+          marginTop: typo.footerMt,
+        }}
+      >
         阅己 ReadSoul · readsoul.cn · 共展示 {books.length} 本
       </p>
     </div>

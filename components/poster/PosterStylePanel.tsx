@@ -1,7 +1,12 @@
 "use client";
 
 import ColorField from "@/components/poster/ColorField";
-import { POSTER_PRESETS, type PosterStyle } from "@/lib/poster";
+import {
+  POSTER_FONT_SCALE,
+  POSTER_PRESETS,
+  clampPosterFontScale,
+  type PosterStyle,
+} from "@/lib/poster";
 
 interface Props {
   style: PosterStyle;
@@ -62,7 +67,7 @@ export default function PosterStylePanel({
           />
         </label>
         <label className="text-[11px] text-white/40">
-          标签
+          书名字号
           <select
             value={style.pillSize}
             onChange={(e) =>
@@ -104,6 +109,49 @@ export default function PosterStylePanel({
             />
             已读删除线
           </label>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-white/8 bg-ink-900/30 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-white/50">
+            整体字号{" "}
+            <span className="font-medium text-soul-gold">
+              {clampPosterFontScale(style.fontScale)}%
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {[75, 100, 125, 150].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => onChange({ ...style, fontScale: n })}
+                className={`rounded-md border px-2 py-0.5 text-[10px] transition ${
+                  clampPosterFontScale(style.fontScale) === n
+                    ? "border-soul-gold/60 bg-soul-gold/15 text-soul-gold"
+                    : "border-white/10 text-white/55 hover:border-soul-gold/30"
+                }`}
+              >
+                {n}%
+              </button>
+            ))}
+          </div>
+        </div>
+        <input
+          type="range"
+          min={POSTER_FONT_SCALE.min}
+          max={POSTER_FONT_SCALE.max}
+          step={POSTER_FONT_SCALE.step}
+          value={clampPosterFontScale(style.fontScale)}
+          onChange={(e) =>
+            onChange({ ...style, fontScale: Number(e.target.value) })
+          }
+          className="mt-2 w-full accent-soul-gold"
+          aria-label="整体字号缩放"
+        />
+        <div className="mt-1 flex justify-between text-[10px] text-white/35">
+          <span>更小 · 多放书名</span>
+          <span>更大 · 更易阅读</span>
         </div>
       </div>
 

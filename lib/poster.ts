@@ -32,8 +32,158 @@ export interface PosterStyle {
   readingBg: string;
   readingText: string;
   pillSize: "sm" | "md" | "lg";
+  /** 全局字号缩放，100 = 标准 */
+  fontScale: number;
   finishedStrikethrough: boolean;
   multicolor: boolean;
+}
+
+export const POSTER_FONT_SCALE = {
+  min: 50,
+  max: 200,
+  step: 5,
+  default: 100,
+} as const;
+
+export function clampPosterFontScale(scale: number | undefined): number {
+  const n = scale ?? POSTER_FONT_SCALE.default;
+  return Math.min(POSTER_FONT_SCALE.max, Math.max(POSTER_FONT_SCALE.min, n));
+}
+
+export function scalePosterPx(px: number, fontScale: number | undefined): number {
+  return Math.round(px * clampPosterFontScale(fontScale) / 100);
+}
+
+export type PosterLayoutVariant =
+  | "preview-mobile"
+  | "preview-desktop"
+  | "export-mobile"
+  | "export-desktop";
+
+const PILL_FONT_BASE: Record<PosterStyle["pillSize"], number> = {
+  sm: 11,
+  md: 12,
+  lg: 14,
+};
+
+export interface PosterTypography {
+  title: number;
+  subtitle: number;
+  badge: number;
+  pill: number;
+  footer: number;
+  subtitleTracking: string;
+  pillPaddingX: number;
+  pillPaddingY: number;
+  badgePaddingX: number;
+  badgePaddingY: number;
+  bookGapX: number;
+  bookGapY: number;
+  rootPaddingX: number;
+  rootPaddingY: number;
+  badgeGap: number;
+  badgeMt: number;
+  headerMb: number;
+  footerMt: number;
+  rootWidth?: number;
+}
+
+export function computePosterTypography(
+  layoutVariant: PosterLayoutVariant,
+  pillSize: PosterStyle["pillSize"],
+  fontScale: number | undefined
+): PosterTypography {
+  const s = (px: number) => scalePosterPx(px, fontScale);
+  const pill = s(PILL_FONT_BASE[pillSize]);
+
+  switch (layoutVariant) {
+    case "export-mobile":
+      return {
+        title: s(30),
+        subtitle: s(16),
+        badge: s(16),
+        pill: s(10),
+        footer: s(16),
+        subtitleTracking: "0.16em",
+        pillPaddingX: s(8),
+        pillPaddingY: s(2),
+        badgePaddingX: s(16),
+        badgePaddingY: s(4),
+        bookGapX: s(4),
+        bookGapY: s(4),
+        rootPaddingX: s(24),
+        rootPaddingY: s(32),
+        badgeGap: s(8),
+        badgeMt: s(12),
+        headerMb: s(20),
+        footerMt: s(24),
+        rootWidth: 750,
+      };
+    case "export-desktop":
+      return {
+        title: s(30),
+        subtitle: s(14),
+        badge: s(14),
+        pill,
+        footer: s(11),
+        subtitleTracking: "0.28em",
+        pillPaddingX: s(pillSize === "lg" ? 16 : pillSize === "sm" ? 10 : 14),
+        pillPaddingY: s(pillSize === "lg" ? 8 : pillSize === "sm" ? 4 : 6),
+        badgePaddingX: s(12),
+        badgePaddingY: s(4),
+        bookGapX: s(6),
+        bookGapY: s(6),
+        rootPaddingX: s(40),
+        rootPaddingY: s(40),
+        badgeGap: s(8),
+        badgeMt: s(12),
+        headerMb: s(24),
+        footerMt: s(32),
+        rootWidth: 1080,
+      };
+    case "preview-mobile":
+      return {
+        title: s(18),
+        subtitle: s(10),
+        badge: s(10),
+        pill: s(5),
+        footer: s(10),
+        subtitleTracking: "0.2em",
+        pillPaddingX: s(4),
+        pillPaddingY: s(1),
+        badgePaddingX: s(10),
+        badgePaddingY: s(2),
+        bookGapX: s(2),
+        bookGapY: s(2),
+        rootPaddingX: s(16),
+        rootPaddingY: s(24),
+        badgeGap: s(6),
+        badgeMt: s(12),
+        headerMb: s(20),
+        footerMt: s(24),
+      };
+    case "preview-desktop":
+      return {
+        title: s(24),
+        subtitle: s(14),
+        badge: s(12),
+        pill,
+        footer: s(10),
+        subtitleTracking: "0.28em",
+        pillPaddingX: s(pillSize === "lg" ? 16 : pillSize === "sm" ? 10 : 14),
+        pillPaddingY: s(pillSize === "lg" ? 8 : pillSize === "sm" ? 4 : 6),
+        badgePaddingX: s(12),
+        badgePaddingY: s(4),
+        bookGapX: s(6),
+        bookGapY: s(6),
+        rootPaddingX: s(32),
+        rootPaddingY: s(40),
+        badgeGap: s(8),
+        badgeMt: s(12),
+        headerMb: s(24),
+        footerMt: s(32),
+      };
+  }
 }
 
 export const PILL_PALETTE: PillColor[] = [
@@ -59,6 +209,7 @@ export const POSTER_PRESETS: Record<string, PosterStyle> = {
     readingBg: "#FFE8CC",
     readingText: "#7C4A03",
     pillSize: "md",
+    fontScale: 100,
     finishedStrikethrough: true,
     multicolor: true,
   },
@@ -75,6 +226,7 @@ export const POSTER_PRESETS: Record<string, PosterStyle> = {
     readingBg: "#FDE68A",
     readingText: "#78350F",
     pillSize: "md",
+    fontScale: 100,
     finishedStrikethrough: true,
     multicolor: true,
   },
@@ -91,6 +243,7 @@ export const POSTER_PRESETS: Record<string, PosterStyle> = {
     readingBg: "#F5DFC4",
     readingText: "#6B4420",
     pillSize: "md",
+    fontScale: 100,
     finishedStrikethrough: false,
     multicolor: true,
   },
@@ -107,6 +260,7 @@ export const POSTER_PRESETS: Record<string, PosterStyle> = {
     readingBg: "rgba(148, 112, 188, 0.16)",
     readingText: "#C4A0DC",
     pillSize: "sm",
+    fontScale: 100,
     finishedStrikethrough: false,
     multicolor: false,
   },
