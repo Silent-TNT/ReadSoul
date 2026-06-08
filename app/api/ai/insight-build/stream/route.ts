@@ -19,8 +19,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const MAX_NOTES = 800;
-const LLM_CHUNK = 20;
+const MAX_NOTES = 500;
+const LLM_CHUNK = 12;
+const MAX_LLM_CANDIDATES = 36;
 
 function sampleNotes(notes: NoteInput[]): NoteInput[] {
   if (notes.length <= MAX_NOTES) return notes;
@@ -97,12 +98,18 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const seenPairIds = new Set<string>();
       const seenClusterKeys = new Set<string>();
+      const noteUsage = new Map<string, number>();
       let pairCount = 0;
       let clusterCount = 0;
 
       const pushPair = (pair: EnrichedInsightPair) => {
         if (seenPairIds.has(pair.id)) return;
+        const su = noteUsage.get(pair.source.id) ?? 0;
+        const tu = noteUsage.get(pair.target.id) ?? 0;
+        if (su >= 2 || tu >= 2) return;
         seenPairIds.add(pair.id);
+        noteUsage.set(pair.source.id, su + 1);
+        noteUsage.set(pair.target.id, tu + 1);
         pairCount++;
         emit(controller, encoder, { type: "pair", pair });
       };
@@ -174,10 +181,10 @@ export async function POST(req: NextRequest) {
 
           const totalChunks = Math.max(
             1,
-            Math.ceil(Math.min(candidates.length, 80) / LLM_CHUNK)
+            Math.ceil(Math.min(candidates.length, MAX_LLM_CANDIDATES) / LLM_CHUNK)
           );
 
-          for (let i = 0; i < Math.min(candidates.length, 80); i += LLM_CHUNK) {
+          for (let i = 0; i < Math.min(candidates.length, MAX_LLM_CANDIDATES); i += LLM_CHUNK) {
             const chunk = candidates.slice(i, i + LLM_CHUNK);
             const chunkIdx = Math.floor(i / LLM_CHUNK);
             emit(controller, encoder, {

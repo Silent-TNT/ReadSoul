@@ -15,6 +15,8 @@ import { retrieveNotes, formatRagContext, type RagChunk } from "@/lib/rag";
 import { loadInsightContextForChat } from "@/lib/insightCache";
 import type { NoteCorpusItem } from "@/lib/noteLinks";
 import { apiFetch } from "@/lib/apiClient";
+import { useApiKey } from "@/hooks/useApiKey";
+import { getClientBetaSecret } from "@/lib/betaGate";
 import {
   type ChatMsg,
   type ChatThread,
@@ -71,10 +73,12 @@ interface ProviderProps {
 export function SoulChatProvider({
   context,
   noteCorpus = [],
-  apiKey,
+  apiKey: apiKeyProp,
   active,
   children,
 }: ProviderProps) {
+  const { apiKey: storedKey } = useApiKey();
+  const apiKey = apiKeyProp || storedKey || undefined;
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [input, setInput] = useState("");
@@ -172,6 +176,20 @@ export function SoulChatProvider({
     setStreaming(true);
 
     try {
+      if (!apiKey) {
+        appendToLast("⚠️ 未找到 API Key，请重新登录后再试");
+        setStreaming(false);
+        return;
+      }
+      const needsBeta =
+        typeof document !== "undefined" &&
+        Boolean(document.body?.dataset?.betaGate);
+      if (needsBeta && !getClientBetaSecret()) {
+        appendToLast("⚠️ Beta 门禁未就绪，请刷新页面后重试");
+        setStreaming(false);
+        return;
+      }
+
       const resp = await apiFetch("/api/ai/chat", {
         method: "POST",
         apiKey,
@@ -179,8 +197,23 @@ export function SoulChatProvider({
       });
 
       if (!resp.ok || !resp.body) {
-        const err = await resp.json().catch(() => ({}));
-        appendToLast(`⚠️ ${err.error || "灵魂解读服务暂不可用"}`);
+        let msg = "灵魂解读服务暂不可用";
+        try {
+          const err = (await resp.json()) as { error?: string };
+          if (err.error) msg = err.error;
+        } catch {
+          try {
+            const text = await resp.text();
+            if (text) msg = text.slice(0, 160);
+          } catch {
+            // ignore
+          }
+        }
+        if (resp.status === 401 && msg === "未授权访问") {
+          msg =
+            "鉴权失败：请刷新页面后重试。若仍失败，请确认 Railway 已配置 BETA_GATE_SECRET 并完成重新部署";
+        }
+        appendToLast(`⚠️ ${msg}`);
         setStreaming(false);
         return;
       }

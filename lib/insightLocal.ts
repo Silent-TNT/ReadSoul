@@ -4,6 +4,7 @@ import {
   type NoteCorpusItem,
   type InsightKind,
 } from "@/lib/noteLinks";
+import { limitNoteExposure } from "@/lib/insightDisplay";
 import {
   buildLocalClusters,
   buildAllEdges,
@@ -169,5 +170,5 @@ function buildGlobalInsightPairsFast(
   }
 
   rawPairs.sort((x, y) => y.score - x.score);
-  return rawPairs.slice(0, limit);
+  return limitNoteExposure(rawPairs, 2).slice(0, limit);
 }

@@ -124,7 +124,7 @@ export interface CandidatePair {
 export function buildCandidatePairs(
   notes: NoteInput[],
   vectors: number[][],
-  topK = 15
+  topK = 4
 ): CandidatePair[] {
   const pairs: CandidatePair[] = [];
   const seen = new Set<string>();
@@ -135,7 +135,7 @@ export function buildCandidatePairs(
       if (i === j) continue;
       if (notes[i].bookId === notes[j].bookId) continue;
       const score = cosine(vectors[i], vectors[j]);
-      if (score < 0.35) continue;
+      if (score < 0.45) continue;
       scored.push({ j, score });
     }
     scored.sort((x, y) => y.score - x.score);
@@ -151,13 +151,35 @@ export function buildCandidatePairs(
         aIdx: ai,
         bIdx: bi,
         score,
-        likelyOpposing: negA !== negB && score >= 0.42,
+        likelyOpposing: negA !== negB && score >= 0.48,
       });
     }
   }
 
   pairs.sort((x, y) => y.score - x.score);
-  return pairs.slice(0, 400);
+  return diversifyCandidatePairs(pairs, 2, 60);
+}
+
+/** 每条笔记最多参与 maxPerNote 个候选对，减少重复嵌入与 LLM 分析 */
+export function diversifyCandidatePairs(
+  pairs: CandidatePair[],
+  maxPerNote = 2,
+  limit = 60
+): CandidatePair[] {
+  const noteUse = new Map<number, number>();
+  const out: CandidatePair[] = [];
+
+  for (const p of pairs) {
+    const ua = noteUse.get(p.aIdx) ?? 0;
+    const ub = noteUse.get(p.bIdx) ?? 0;
+    if (ua >= maxPerNote || ub >= maxPerNote) continue;
+    out.push(p);
+    noteUse.set(p.aIdx, ua + 1);
+    noteUse.set(p.bIdx, ub + 1);
+    if (out.length >= limit) break;
+  }
+
+  return out;
 }
 
 function extractJson(text: string): Record<string, unknown> {
@@ -248,6 +270,7 @@ ${noteSample.join("\n\n")}`;
   const noteMap = new Map(notes.map((n) => [n.id, n]));
   const pairs: EnrichedInsightPair[] = [];
   const pairArr = Array.isArray(parsed.pairs) ? parsed.pairs : [];
+  const seenNotePair = new Set<string>();
 
   pairArr.forEach((raw, idx) => {
     const item = raw as Record<string, unknown>;
@@ -256,8 +279,11 @@ ${noteSample.join("\n\n")}`;
     const source = noteMap.get(ids[0]);
     const target = noteMap.get(ids[1]);
     if (!source || !target) return;
+    if (source.bookId === target.bookId) return;
     const kind = (item.kind === "opposing" ? "opposing" : "similar") as InsightKind;
     const id = [ids[0], ids[1], kind].sort().join("|");
+    if (seenNotePair.has(id)) return;
+    seenNotePair.add(id);
     pairs.push(
       toEnrichedPair(
         {
@@ -328,7 +354,27 @@ ${noteSample.join("\n\n")}`;
     });
   });
 
-  return { pairs, clusters };
+  return { pairs: limitNoteExposureInPairs(pairs, 2), clusters };
+}
+
+function limitNoteExposureInPairs(
+  pairs: EnrichedInsightPair[],
+  maxPerNote: number
+): EnrichedInsightPair[] {
+  const noteCount = new Map<string, number>();
+  const sorted = [...pairs].sort(
+    (a, b) => (b.confidence ?? b.score) - (a.confidence ?? a.score)
+  );
+  const out: EnrichedInsightPair[] = [];
+  for (const p of sorted) {
+    const sc = noteCount.get(p.source.id) ?? 0;
+    const tc = noteCount.get(p.target.id) ?? 0;
+    if (sc >= maxPerNote || tc >= maxPerNote) continue;
+    out.push(p);
+    noteCount.set(p.source.id, sc + 1);
+    noteCount.set(p.target.id, tc + 1);
+  }
+  return out;
 }
 
 /** LLM-only 降级：无 Embedding 时分批聚类 */
@@ -389,7 +435,7 @@ export async function analyzeLlmOnlyBatches(
     return true;
   });
 
-  return { pairs: dedupedPairs, clusters: dedupedClusters };
+  return { pairs: limitNoteExposureInPairs(dedupedPairs, 2), clusters: dedupedClusters };
 }
 
 export function pairsFromCandidates(

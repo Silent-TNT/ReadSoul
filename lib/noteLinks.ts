@@ -1,5 +1,7 @@
 /** 跨书笔记关联：相似（共鸣）与相反（碰撞）观点发现 */
 
+import { limitNoteExposure } from "@/lib/insightDisplay";
+
 export interface NoteCorpusItem {
   id: string;
   bookId: string;
@@ -243,7 +245,7 @@ export function buildGlobalInsightPairs(
   });
 
   pairs.sort((a, b) => b.score - a.score);
-  return pairs.slice(0, limit);
+  return limitNoteExposure(pairs, 2).slice(0, limit);
 }
 
 export function corpusFromBookmarks(

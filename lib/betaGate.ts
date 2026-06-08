@@ -12,11 +12,13 @@ export function setRuntimeBetaSecret(secret: string) {
 }
 
 export function getClientBetaSecret(): string {
+  if (typeof window !== "undefined") {
+    const injected = window.__READSOUL_BETA__?.trim();
+    if (injected) return injected;
+  }
   if (typeof document !== "undefined") {
     const fromBody = document.body?.dataset?.betaGate?.trim();
     if (fromBody) return fromBody;
-    const injected = window.__READSOUL_BETA__?.trim();
-    if (injected) return injected;
   }
   if (runtimeBetaSecret) return runtimeBetaSecret;
   return process.env.NEXT_PUBLIC_BETA_GATE_SECRET?.trim() ?? "";

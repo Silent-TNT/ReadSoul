@@ -335,7 +335,7 @@ export default function DashboardPage() {
       context={chatContext}
       noteCorpus={ragCorpus}
       apiKey={apiKey ?? undefined}
-      active={chatOpen}
+      active={Boolean(data && apiKey)}
     >
     <main className="grain min-h-screen pb-12">
       <Sidebar

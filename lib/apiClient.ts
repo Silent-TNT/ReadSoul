@@ -7,8 +7,9 @@ function buildHeaders(apiKey?: string | null): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
+  const key = apiKey?.trim();
+  if (key && /^wrk-[A-Za-z0-9]+/.test(key)) {
+    headers.Authorization = `Bearer ${key}`;
   }
   const betaSecret = getClientBetaSecret();
   if (betaSecret) {

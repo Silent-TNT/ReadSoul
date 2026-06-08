@@ -24,6 +24,7 @@ import { fetchInsightBuildStream } from "@/lib/insightBuildClient";
 import type { InsightBuildResult, InsightBuildStage } from "@/lib/insightTypes";
 import type { EnrichedInsightPair } from "@/lib/insightTypes";
 import type { InsightStreamEvent } from "@/lib/insightStream";
+import { prepareInsightPairsForDisplay, clearDisplaySeed } from "@/lib/insightDisplay";
 import InsightPairFeed from "@/components/insights/InsightPairFeed";
 import InsightTopicView from "@/components/insights/InsightTopicView";
 
@@ -198,11 +199,10 @@ export default function InsightWeaveView({
 
       const cached = await getInsightCache(items);
       if (cached && cached.pairs.some((p) => p.dataSource === "ai")) {
-        const filtered = {
+        setInsightData({
           ...cached,
           pairs: filterPairsForDisplay(cached.pairs, loadDismissedIds()),
-        };
-        setInsightData(filtered);
+        });
         setBuilding(false);
         setBuildStage("done");
         setBuildProgress(1);
@@ -258,6 +258,7 @@ export default function InsightWeaveView({
 
   async function handleRebuild() {
     await clearInsightCache();
+    clearDisplaySeed(hashCorpus(activeCorpus));
     lastBuiltHashRef.current = "";
     await runInsightBuild(activeCorpus);
   }
@@ -280,8 +281,13 @@ export default function InsightWeaveView({
 
   const pairs = useMemo(() => {
     if (!insightData) return [];
-    return filterPairsForDisplay(insightData.pairs, dismissedIds);
-  }, [insightData, dismissedIds]);
+    const filtered = filterPairsForDisplay(insightData.pairs, dismissedIds);
+    if (filtered.length === 0) return filtered;
+    return prepareInsightPairsForDisplay(
+      filtered,
+      insightData.corpusHash || hashCorpus(activeCorpus)
+    );
+  }, [insightData, dismissedIds, activeCorpus]);
 
   const clusters = insightData?.clusters ?? [];
 
