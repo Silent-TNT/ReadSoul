@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from "react";
 import dynamic from "next/dynamic";
 import { bookNoteTotal } from "@/lib/aggregate";
 import { fetchFullNoteCorpus } from "@/lib/noteCorpus";
@@ -9,6 +16,7 @@ import type { InsightKind, NoteCorpusItem } from "@/lib/noteLinks";
 import type { NotebookBook } from "@/lib/types";
 import {
   getInsightCache,
+  peekInsightCache,
   setInsightCache,
   clearInsightCache,
   hashCorpus,
@@ -19,12 +27,16 @@ import {
   loadInsightFeedback,
   addInsightFeedback,
   isSimilarToFeedback,
+  type InsightFeedbackEntry,
 } from "@/lib/insightFeedback";
 import { fetchInsightBuildStream } from "@/lib/insightBuildClient";
 import type { InsightBuildResult, InsightBuildStage } from "@/lib/insightTypes";
 import type { EnrichedInsightPair } from "@/lib/insightTypes";
 import type { InsightStreamEvent } from "@/lib/insightStream";
-import { prepareInsightPairsForDisplay, clearDisplaySeed } from "@/lib/insightDisplay";
+import {
+  prepareInsightPairsForDisplay,
+  clearDisplaySeed,
+} from "@/lib/insightDisplay";
 import InsightPairFeed from "@/components/insights/InsightPairFeed";
 import InsightTopicView from "@/components/insights/InsightTopicView";
 
@@ -33,11 +45,14 @@ const BookOverviewChart = dynamic(
   { ssr: false }
 );
 
+/** 跨 Tab 切换保留构建状态，避免反复触发分析 */
+const buildGuard = new Map<string, "running" | "done">();
+
 function filterPairsForDisplay(
   pairs: EnrichedInsightPair[],
-  dismissed: Set<string>
+  dismissed: Set<string>,
+  feedback: InsightFeedbackEntry[]
 ): EnrichedInsightPair[] {
-  const feedback = loadInsightFeedback();
   return pairs.filter(
     (p) => !dismissed.has(p.id) && !isSimilarToFeedback(p, feedback)
   );
@@ -48,6 +63,7 @@ interface Props {
   books: NotebookBook[];
   sharedCorpus?: NoteCorpusItem[];
   sharedLoading?: boolean;
+  active?: boolean;
   onCorpusLoaded?: (corpus: NoteCorpusItem[]) => void;
 }
 
@@ -59,6 +75,7 @@ export default function InsightWeaveView({
   books,
   sharedCorpus,
   sharedLoading,
+  active = true,
   onCorpusLoaded,
 }: Props) {
   const [corpus, setCorpus] = useState<NoteCorpusItem[]>(sharedCorpus ?? []);
@@ -72,6 +89,7 @@ export default function InsightWeaveView({
   const [buildMessage, setBuildMessage] = useState("");
   const [buildProgress, setBuildProgress] = useState(0);
   const [building, setBuilding] = useState(false);
+  const [backgroundBuilding, setBackgroundBuilding] = useState(false);
   const [buildError, setBuildError] = useState("");
   const [tab, setTab] = useState<ViewTab>("feed");
   const [filter, setFilter] = useState<FilterKind>("all");
@@ -83,6 +101,11 @@ export default function InsightWeaveView({
   const [booksOpen, setBooksOpen] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const lastBuiltHashRef = useRef("");
+  const feedbackRef = useRef<InsightFeedbackEntry[]>([]);
+  const pendingPairsRef = useRef<EnrichedInsightPair[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backgroundModeRef = useRef(false);
+  const corpusHashRef = useRef("");
 
   const booksWithNotes = useMemo(
     () =>
@@ -94,6 +117,7 @@ export default function InsightWeaveView({
 
   useEffect(() => {
     setDismissedIds(loadDismissedIds());
+    feedbackRef.current = loadInsightFeedback();
   }, []);
 
   const loadCorpus = useCallback(async () => {
@@ -119,18 +143,25 @@ export default function InsightWeaveView({
       setLoading(false);
       return;
     }
+    if (!active) return;
     if (!sharedLoading) loadCorpus();
-  }, [sharedCorpus, sharedLoading, loadCorpus]);
+  }, [sharedCorpus, sharedLoading, loadCorpus, active]);
 
   const activeCorpus = useMemo(() => {
     if (selectedBookIds.size === 0) return corpus;
     return filterCorpusByBooks(corpus, selectedBookIds);
   }, [corpus, selectedBookIds]);
 
-  const overview = useMemo(
-    () => (corpus.length > 0 ? buildBookOverview(corpus) : null),
-    [corpus]
+  const activeCorpusHash = useMemo(
+    () => hashCorpus(activeCorpus),
+    [activeCorpus]
   );
+  corpusHashRef.current = activeCorpusHash;
+
+  const overview = useMemo(() => {
+    if (!booksOpen || corpus.length === 0) return null;
+    return buildBookOverview(corpus);
+  }, [booksOpen, corpus]);
 
   const nodeMap = useMemo(() => {
     const m = new Map<string, NoteCorpusItem>();
@@ -138,78 +169,144 @@ export default function InsightWeaveView({
     return m;
   }, [activeCorpus]);
 
-  const handleStreamEvent = useCallback((event: InsightStreamEvent) => {
-    if (event.type === "stage") {
-      setBuildMessage(event.message);
-      if (event.progress != null) setBuildProgress(event.progress);
-      const stageMap: Record<string, InsightBuildStage> = {
-        embedding: "embedding",
-        matching: "embedding",
-        analyzing: "clustering",
-      };
-      setBuildStage(stageMap[event.stage] ?? "clustering");
-    } else if (event.type === "pair") {
-      const feedback = loadInsightFeedback();
-      if (isSimilarToFeedback(event.pair, feedback)) return;
+  const flushPendingPairs = useCallback(() => {
+    const batch = pendingPairsRef.current;
+    if (batch.length === 0) return;
+    pendingPairsRef.current = [];
+    startTransition(() => {
       setInsightData((prev) => {
         const base = prev ?? {
           pairs: [],
           clusters: [],
           builtAt: Date.now(),
           version: 1,
-          corpusHash: "",
+          corpusHash: corpusHashRef.current,
         };
-        if (base.pairs.some((p) => p.id === event.pair.id)) return base;
-        return { ...base, pairs: [...base.pairs, event.pair] };
-      });
-    } else if (event.type === "cluster") {
-      setInsightData((prev) => {
-        const base = prev ?? {
-          pairs: [],
-          clusters: [],
-          builtAt: Date.now(),
-          version: 1,
-          corpusHash: "",
-        };
-        const key = event.cluster.nodeIds.sort().join("|");
-        if (
-          base.clusters.some(
-            (c) => c.nodeIds.sort().join("|") === key
-          )
-        ) {
-          return base;
+        const existing = new Set(base.pairs.map((p) => p.id));
+        const merged = [...base.pairs];
+        for (const p of batch) {
+          if (!existing.has(p.id)) merged.push(p);
         }
-        return { ...base, clusters: [...base.clusters, event.cluster] };
+        return { ...base, pairs: merged };
       });
-    } else if (event.type === "error") {
-      setBuildError(event.error);
-      setBuildStage("error");
-    } else if (event.type === "done") {
-      setBuildProgress(1);
-      setBuildStage("done");
-      setBuildMessage(`共找到 ${event.pairCount} 组对照、${event.clusterCount} 个话题`);
-    }
+    });
   }, []);
 
+  const schedulePairFlush = useCallback(
+    (immediate = false) => {
+      if (immediate) {
+        if (flushTimerRef.current) {
+          clearTimeout(flushTimerRef.current);
+          flushTimerRef.current = null;
+        }
+        flushPendingPairs();
+        return;
+      }
+      if (flushTimerRef.current) return;
+      flushTimerRef.current = setTimeout(() => {
+        flushTimerRef.current = null;
+        flushPendingPairs();
+      }, 450);
+    },
+    [flushPendingPairs]
+  );
+
+  const handleStreamEvent = useCallback(
+    (event: InsightStreamEvent) => {
+      if (event.type === "stage") {
+        setBuildMessage(event.message);
+        if (event.progress != null) setBuildProgress(event.progress);
+        const stageMap: Record<string, InsightBuildStage> = {
+          embedding: "embedding",
+          matching: "embedding",
+          analyzing: "clustering",
+        };
+        setBuildStage(stageMap[event.stage] ?? "clustering");
+      } else if (event.type === "pair") {
+        if (isSimilarToFeedback(event.pair, feedbackRef.current)) return;
+        if (backgroundModeRef.current) {
+          pendingPairsRef.current.push(event.pair);
+          schedulePairFlush(false);
+        } else {
+          pendingPairsRef.current.push(event.pair);
+          schedulePairFlush(true);
+        }
+      } else if (event.type === "initial_ready") {
+        flushPendingPairs();
+        setBuilding(false);
+        setBackgroundBuilding(true);
+        backgroundModeRef.current = true;
+        setBuildMessage(
+          `已精选 ${event.opposingCount} 组对立、${event.similarCount} 组相似，后台继续加载更多…`
+        );
+        setBuildProgress(0.68);
+      } else if (event.type === "cluster") {
+        startTransition(() => {
+          setInsightData((prev) => {
+            const base = prev ?? {
+              pairs: [],
+              clusters: [],
+              builtAt: Date.now(),
+              version: 1,
+              corpusHash: corpusHashRef.current,
+            };
+            const key = event.cluster.nodeIds.sort().join("|");
+            if (
+              base.clusters.some((c) => c.nodeIds.sort().join("|") === key)
+            ) {
+              return base;
+            }
+            return { ...base, clusters: [...base.clusters, event.cluster] };
+          });
+        });
+      } else if (event.type === "error") {
+        setBuildError(event.error);
+        setBuildStage("error");
+      } else if (event.type === "done") {
+        flushPendingPairs();
+        setBuildProgress(1);
+        setBuildStage("done");
+        setBuilding(false);
+        setBackgroundBuilding(false);
+        backgroundModeRef.current = false;
+        setBuildMessage(`共找到 ${event.pairCount} 组对照、${event.clusterCount} 个话题`);
+      }
+    },
+    [flushPendingPairs, schedulePairFlush]
+  );
+
   const runInsightBuild = useCallback(
-    async (items: NoteCorpusItem[]) => {
+    async (items: NoteCorpusItem[], force = false) => {
       if (items.length < 2) return;
 
-      setBuildError("");
+      const hash = hashCorpus(items);
+      if (!force && buildGuard.get(hash) === "running") return;
 
-      const cached = await getInsightCache(items);
-      if (cached && cached.pairs.some((p) => p.dataSource === "ai")) {
+      setBuildError("");
+      backgroundModeRef.current = false;
+      pendingPairsRef.current = [];
+
+      const memCached = peekInsightCache(items);
+      if (!force && memCached && memCached.pairs.some((p) => p.dataSource === "ai")) {
         setInsightData({
-          ...cached,
-          pairs: filterPairsForDisplay(cached.pairs, loadDismissedIds()),
+          ...memCached,
+          pairs: filterPairsForDisplay(
+            memCached.pairs,
+            loadDismissedIds(),
+            feedbackRef.current
+          ),
         });
         setBuilding(false);
+        setBackgroundBuilding(false);
         setBuildStage("done");
         setBuildProgress(1);
+        buildGuard.set(hash, "done");
         return;
       }
 
+      buildGuard.set(hash, "running");
       setBuilding(true);
+      setBackgroundBuilding(false);
       setBuildStage("embedding");
       setBuildMessage("正在启动 AI 分析…");
       setBuildProgress(0.05);
@@ -218,53 +315,104 @@ export default function InsightWeaveView({
         clusters: [],
         builtAt: Date.now(),
         version: 1,
-        corpusHash: hashCorpus(items),
+        corpusHash: hash,
       });
 
       try {
+        const cached = !force ? await getInsightCache(items) : null;
+        if (cached && cached.pairs.some((p) => p.dataSource === "ai")) {
+          setInsightData({
+            ...cached,
+            pairs: filterPairsForDisplay(
+              cached.pairs,
+              loadDismissedIds(),
+              feedbackRef.current
+            ),
+          });
+          setBuilding(false);
+          setBackgroundBuilding(false);
+          setBuildStage("done");
+          setBuildProgress(1);
+          buildGuard.set(hash, "done");
+          return;
+        }
+
         const result = await fetchInsightBuildStream(
           items,
           handleStreamEvent,
-          loadInsightFeedback(),
+          feedbackRef.current,
           apiKey
         );
         result.pairs = filterPairsForDisplay(
           result.pairs.sort(
             (a, b) => (b.confidence ?? b.score) - (a.confidence ?? a.score)
           ),
-          loadDismissedIds()
+          loadDismissedIds(),
+          feedbackRef.current
         );
         await setInsightCache(result);
         setInsightData(result);
         setBuildStage("done");
         setBuildProgress(1);
+        buildGuard.set(hash, "done");
       } catch (e) {
         setBuildError((e as Error).message);
         setBuildStage("error");
+        buildGuard.delete(hash);
       } finally {
         setBuilding(false);
+        setBackgroundBuilding(false);
+        backgroundModeRef.current = false;
       }
     },
-    [handleStreamEvent]
+    [apiKey, handleStreamEvent]
   );
 
   useEffect(() => {
-    if (activeCorpus.length < 2 || loading || sharedLoading) return;
-    const hash = hashCorpus(activeCorpus);
-    if (lastBuiltHashRef.current === hash) return;
-    lastBuiltHashRef.current = hash;
-    runInsightBuild(activeCorpus);
-  }, [activeCorpus, loading, sharedLoading, runInsightBuild]);
+    if (!active || activeCorpus.length < 2 || loading || sharedLoading) return;
+    if (lastBuiltHashRef.current === activeCorpusHash) return;
+    lastBuiltHashRef.current = activeCorpusHash;
+
+    const memCached = peekInsightCache(activeCorpus);
+    if (memCached?.pairs.some((p) => p.dataSource === "ai")) {
+      startTransition(() => {
+        setInsightData({
+          ...memCached,
+          pairs: filterPairsForDisplay(
+            memCached.pairs,
+            dismissedIds,
+            feedbackRef.current
+          ),
+        });
+        setBuildStage("done");
+        setBuildProgress(1);
+      });
+      buildGuard.set(activeCorpusHash, "done");
+      return;
+    }
+
+    void runInsightBuild(activeCorpus);
+  }, [
+    active,
+    activeCorpus,
+    activeCorpusHash,
+    loading,
+    sharedLoading,
+    runInsightBuild,
+    dismissedIds,
+  ]);
 
   async function handleRebuild() {
     await clearInsightCache();
-    clearDisplaySeed(hashCorpus(activeCorpus));
+    clearDisplaySeed(activeCorpusHash);
+    buildGuard.delete(activeCorpusHash);
     lastBuiltHashRef.current = "";
-    await runInsightBuild(activeCorpus);
+    await runInsightBuild(activeCorpus, true);
   }
 
   function dismissPair(pair: EnrichedInsightPair) {
-    addInsightFeedback(pair);
+    const nextFeedback = addInsightFeedback(pair);
+    feedbackRef.current = nextFeedback;
     setDismissedIds((prev) => {
       const next = new Set(prev);
       next.add(pair.id);
@@ -279,15 +427,19 @@ export default function InsightWeaveView({
     });
   }
 
-  const pairs = useMemo(() => {
+  const orderedPairs = useMemo(() => {
     if (!insightData) return [];
-    const filtered = filterPairsForDisplay(insightData.pairs, dismissedIds);
+    const filtered = filterPairsForDisplay(
+      insightData.pairs,
+      dismissedIds,
+      feedbackRef.current
+    );
     if (filtered.length === 0) return filtered;
     return prepareInsightPairsForDisplay(
       filtered,
-      insightData.corpusHash || hashCorpus(activeCorpus)
+      insightData.corpusHash || activeCorpusHash
     );
-  }, [insightData, dismissedIds, activeCorpus]);
+  }, [insightData, dismissedIds, activeCorpusHash]);
 
   const clusters = insightData?.clusters ?? [];
 
@@ -297,10 +449,10 @@ export default function InsightWeaveView({
       totalNotes: corpus.length,
       books: bookSet.size,
       activeNotes: activeCorpus.length,
-      pairs: pairs.length,
+      pairs: orderedPairs.length,
       clusters: clusters.length,
     };
-  }, [corpus, activeCorpus, pairs, clusters]);
+  }, [corpus, activeCorpus, orderedPairs, clusters]);
 
   function toggleBook(bookId: string) {
     const allIds = booksWithNotes.map((b) => b.bookId);
@@ -321,7 +473,7 @@ export default function InsightWeaveView({
 
   const tabHint =
     tab === "feed"
-      ? "每次只看一组跨书划线，发现相似或对立"
+      ? "先展示 3 组高质量相似 + 3 组对立，翻页时后台继续加载更多"
       : "把讨论同一主题的划线归在一起，逐个话题翻看";
 
   return (
@@ -329,7 +481,7 @@ export default function InsightWeaveView({
       <div className="soul-card">
         <h2 className="soul-card-title">观点织网</h2>
         <p className="soul-card-sub">
-          从 {stats.totalNotes} 条划线中，AI 帮你找出跨书的相似与对立，一次专注一组
+          从 {stats.totalNotes} 条划线中，AI 精选跨书相似与对立，一次专注一组
         </p>
 
         {!loading && !error && (
@@ -395,7 +547,7 @@ export default function InsightWeaveView({
 
           <button
             onClick={handleRebuild}
-            disabled={building}
+            disabled={building || backgroundBuilding}
             className="rounded-lg border border-soul-gold/30 px-3 py-1.5 text-xs text-soul-gold hover:bg-soul-gold/10 disabled:opacity-50"
           >
             重新分析
@@ -450,7 +602,7 @@ export default function InsightWeaveView({
         )}
       </div>
 
-      {(loading || sharedLoading) && (
+      {(loading || sharedLoading) && !corpus.length && (
         <div className="soul-card text-center text-sm soul-card-sub">
           {progress}
         </div>
@@ -465,7 +617,7 @@ export default function InsightWeaveView({
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && corpus.length > 0 && (
         <>
           {buildError && (
             <div className="soul-card text-sm text-red-400/90">
@@ -475,10 +627,11 @@ export default function InsightWeaveView({
 
           {tab === "feed" ? (
             <InsightPairFeed
-              pairs={pairs}
+              pairs={orderedPairs}
               filter={filter}
               search={search}
               building={building}
+              backgroundBuilding={backgroundBuilding}
               buildProgress={buildProgress}
               buildMessage={buildMessage}
               onDismissPair={dismissPair}
@@ -489,7 +642,7 @@ export default function InsightWeaveView({
               nodeMap={nodeMap}
               filter={filter}
               search={search}
-              building={building}
+              building={building || backgroundBuilding}
               buildMessage={buildMessage}
             />
           )}

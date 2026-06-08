@@ -5,6 +5,11 @@ export type InsightStreamEvent =
   | { type: "stage"; stage: string; message: string; progress?: number }
   | { type: "pair"; pair: EnrichedInsightPair }
   | { type: "cluster"; cluster: InsightCluster }
+  | {
+      type: "initial_ready";
+      similarCount: number;
+      opposingCount: number;
+    }
   | { type: "done"; pairCount: number; clusterCount: number }
   | { type: "error"; error: string };
 

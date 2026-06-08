@@ -84,7 +84,28 @@ export function prepareInsightPairsForDisplay(
 ): EnrichedInsightPair[] {
   const unique = dedupePairIds(pairs);
   const limited = limitNoteExposure(unique, maxPerNote);
-  return shuffleWithSeed(limited, getOrCreateDisplaySeed(corpusHash));
+  return orderPairsForFeed(limited, corpusHash);
+}
+
+/** 高质量对立/相似各 3 组优先展示，其余随机穿插 */
+export function orderPairsForFeed(
+  pairs: EnrichedInsightPair[],
+  corpusHash: string
+): EnrichedInsightPair[] {
+  const opposing = pairs
+    .filter((p) => p.kind === "opposing")
+    .sort((a, b) => pairScore(b) - pairScore(a));
+  const similar = pairs
+    .filter((p) => p.kind === "similar")
+    .sort((a, b) => pairScore(b) - pairScore(a));
+
+  const head = [...opposing.slice(0, 3), ...similar.slice(0, 3)];
+  const headIds = new Set(head.map((p) => p.id));
+  const rest = shuffleWithSeed(
+    pairs.filter((p) => !headIds.has(p.id)),
+    getOrCreateDisplaySeed(corpusHash)
+  );
+  return [...head, ...rest];
 }
 
 function dedupePairIds(pairs: EnrichedInsightPair[]): EnrichedInsightPair[] {

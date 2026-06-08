@@ -226,7 +226,7 @@ B《${b.bookTitle}》：${b.text.slice(0, 160)}`;
 }
 
 规则：
-- pairs 只使用候选对中的 id，kind 判断要准确
+- pairs 只使用候选对中的 id，kind 判断要准确；confidence 低于 0.6 的不要输出
 - reflectionPrompt 必须是开放式问题，激发思考
 - clusters 每组至少2条 noteIds，debate 需 sides 两派
 - 最多 40 pairs、12 clusters

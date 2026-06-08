@@ -13,6 +13,19 @@ const TTL_MS =
   60 *
   1000;
 
+let memoryCache: { hash: string; data: InsightBuildResult } | null = null;
+
+export function peekInsightCache(
+  corpus: NoteCorpusItem[]
+): InsightBuildResult | null {
+  if (corpus.length === 0 || !memoryCache) return null;
+  const hash = hashCorpus(corpus);
+  if (memoryCache.hash !== hash) return null;
+  if (memoryCache.data.version !== INSIGHT_CACHE_VERSION) return null;
+  if (Date.now() - memoryCache.data.builtAt > TTL_MS) return null;
+  return memoryCache.data;
+}
+
 export function hashCorpus(corpus: NoteCorpusItem[]): string {
   const payload = corpus
     .map((c) => `${c.id}:${c.text.slice(0, 32)}`)
@@ -67,6 +80,7 @@ export async function getInsightCache(
     if (result.version !== INSIGHT_CACHE_VERSION) return null;
     if (Date.now() - result.builtAt > TTL_MS) return null;
     if (result.corpusHash !== hash) return null;
+    memoryCache = { hash, data: result };
     return result;
   } catch {
     return null;
@@ -76,6 +90,7 @@ export async function getInsightCache(
 export async function setInsightCache(
   result: InsightBuildResult
 ): Promise<void> {
+  memoryCache = { hash: result.corpusHash, data: result };
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -92,6 +107,7 @@ export async function setInsightCache(
 }
 
 export async function clearInsightCache(): Promise<void> {
+  memoryCache = null;
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {

@@ -13,6 +13,7 @@ interface Props {
   filter: FilterKind;
   search: string;
   building?: boolean;
+  backgroundBuilding?: boolean;
   buildProgress?: number;
   buildMessage?: string;
   onDismissPair?: (pair: EnrichedInsightPair) => void;
@@ -44,6 +45,7 @@ export default function InsightPairFeed({
   filter,
   search,
   building,
+  backgroundBuilding,
   buildProgress,
   buildMessage,
   onDismissPair,
@@ -110,7 +112,7 @@ export default function InsightPairFeed({
           {buildMessage || "AI 正在分析你的划线…"}
         </p>
         <p className="mt-2 text-[11px] soul-card-sub">
-          分析出一组就显示一组，无需等待全部完成
+          正在精选高质量对照，先出 3 组相似 + 3 组对立…
         </p>
       </div>
     );
@@ -198,7 +200,7 @@ export default function InsightPairFeed({
 
   return (
     <div className="w-full space-y-3">
-      {building && (
+      {(building || backgroundBuilding) && (
         <div className="rounded-xl border border-soul-gold/20 bg-soul-gold/5 px-3 py-2">
           <div className="mb-2 h-1 overflow-hidden rounded-full bg-white/10">
             <div
@@ -209,7 +211,11 @@ export default function InsightPairFeed({
             />
           </div>
           <p className="text-[11px] soul-card-sub">
-            {buildMessage || "AI 还在继续分析…"} · 已找到 {pairs.length} 组
+            {buildMessage ||
+              (backgroundBuilding
+                ? "后台继续加载更多对照…"
+                : "AI 还在继续分析…")}{" "}
+            · 已找到 {pairs.length} 组
           </p>
         </div>
       )}
@@ -311,7 +317,7 @@ export default function InsightPairFeed({
         </button>
         <span className="shrink-0 px-1 text-[11px] soul-card-sub md:text-xs">
           {index + 1} / {filtered.length}
-          {building ? "+" : ""}
+          {backgroundBuilding ? "+" : ""}
         </span>
         <button
           type="button"

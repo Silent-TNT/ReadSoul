@@ -514,9 +514,12 @@ export default function DashboardPage() {
         </div>
         )}
 
-        {view === "insights" && (
-        <div className="mt-2">
+        <div
+          className={view === "insights" ? "mt-2" : "hidden"}
+          aria-hidden={view !== "insights"}
+        >
             <InsightWeaveView
+              active={view === "insights"}
               apiKey={apiKey ?? ""}
               books={data.notebooks.books ?? []}
               sharedCorpus={ragCorpus}
@@ -524,7 +527,6 @@ export default function DashboardPage() {
               onCorpusLoaded={setRagCorpus}
             />
         </div>
-        )}
 
         {view === "ai" && (
         <div className="mt-2">
